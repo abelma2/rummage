@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
+import { checkRateLimit } from "@/lib/ratelimit";
 import type { IngredientsResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -22,6 +23,16 @@ Rules:
 No prose, no keys, no explanation — just the JSON array.`;
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit(req);
+  if (!rate.ok) {
+    const init: ResponseInit = { status: 429 };
+    if (rate.retryAfter) init.headers = { "Retry-After": String(rate.retryAfter) };
+    return NextResponse.json(
+      { error: "This demo has a daily limit and you've reached it. Try again tomorrow." },
+      init
+    );
+  }
+
   let body: { image?: string; mediaType?: string };
   try {
     body = await req.json();

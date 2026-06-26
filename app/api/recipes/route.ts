@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
 import { coerceRecipes, parsePartialRecipes } from "@/lib/recipes";
+import { checkRateLimit } from "@/lib/ratelimit";
 import type { Recipe, RecipeStreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,6 +39,16 @@ const PREFERENCE_RULES: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
+  const rate = await checkRateLimit(req);
+  if (!rate.ok) {
+    const init: ResponseInit = { status: 429 };
+    if (rate.retryAfter) init.headers = { "Retry-After": String(rate.retryAfter) };
+    return NextResponse.json(
+      { error: "This demo has a daily limit and you've reached it. Try again tomorrow." },
+      init
+    );
+  }
+
   let body: { ingredients?: unknown; preferences?: unknown };
   try {
     body = await req.json();
