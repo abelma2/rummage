@@ -371,6 +371,46 @@ body {
   color: var(--muted);
 }
 
+/* ---------- Preferences ---------- */
+.prefs-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.prefs-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.prefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pref {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.pref:hover {
+  border-color: var(--herb);
+  color: var(--ink);
+}
+.pref.on {
+  background: var(--herb);
+  border-color: var(--herb);
+  color: var(--paper);
+}
+
 /* ---------- CTA ---------- */
 .cta-row {
   margin-top: 22px;

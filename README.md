@@ -20,7 +20,8 @@ It's deliberately a two-step pipeline, so each half of the "multimodal" story is
 1. **See it** — the photo is downscaled in the browser, then sent to Claude's vision
    model, which returns a structured list of the food it can identify.
 2. **Cook it** — you tweak the detected ingredients (remove misreads, add what the
-   camera missed), and Claude turns the final list into three recipes with steps,
+   camera missed), optionally flip on dietary filters (vegetarian, gluten-free,
+   quick, …), and Claude turns the final list into three recipes with steps,
    timing, and what extra staples you'll need. The recipes **stream in live** —
    cards fill themselves out token-by-token instead of making you wait for the
    whole response.
@@ -106,6 +107,8 @@ lib/
 ## Ideas for next steps
 
 - "Cook mode" — step-by-step view with timers
+- Annotated photo: overlay detected-ingredient labels on the uploaded image
+- A shareable URL for a generated recipe
 
 ## License
 

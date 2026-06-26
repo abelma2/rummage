@@ -5,6 +5,17 @@ import type { Recipe, IngredientsResponse, RecipeStreamEvent } from "@/lib/types
 
 const MAX_EDGE = 1024;
 
+// Optional recipe constraints. Ids are sent to the API, which owns the mapping
+// to prompt text (and ignores anything it doesn't recognize).
+const PREFERENCES: { id: string; label: string }[] = [
+  { id: "vegetarian", label: "Vegetarian" },
+  { id: "vegan", label: "Vegan" },
+  { id: "gluten-free", label: "Gluten-free" },
+  { id: "dairy-free", label: "Dairy-free" },
+  { id: "quick", label: "Quick (≤30 min)" },
+  { id: "spicy", label: "Make it spicy" },
+];
+
 // Downscale + re-encode client-side so uploads stay small and the vision call is fast/cheap.
 function processImage(file: File): Promise<{ dataUrl: string; base64: string }> {
   return new Promise((resolve, reject) => {
@@ -55,12 +66,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 // as cards fill in. Resolves once the final `done` event arrives.
 async function streamRecipes(
   ingredients: string[],
+  preferences: string[],
   onRecipes: (recipes: Recipe[]) => void
 ): Promise<void> {
   const res = await fetch("/api/recipes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ingredients }),
+    body: JSON.stringify({ ingredients, preferences }),
   });
 
   // Validation/config failures come back as a plain JSON error, not a stream.
@@ -130,6 +142,7 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [detected, setDetected] = useState(false); // a detection pass has completed
+  const [prefs, setPrefs] = useState<string[]>([]); // sticky dietary/recipe filters
 
   const handleFile = useCallback(async (file: File | undefined) => {
     if (!file) return;
@@ -198,12 +211,15 @@ export default function Home() {
     setNewItem("");
   };
 
+  const togglePref = (id: string) =>
+    setPrefs((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+
   const findRecipes = async () => {
     setError(null);
     setCooking(true);
     setRecipes([]);
     try {
-      await streamRecipes(ingredients, setRecipes);
+      await streamRecipes(ingredients, prefs, setRecipes);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't build recipes.");
       setRecipes([]); // drop any half-streamed cards on failure
@@ -374,6 +390,28 @@ export default function Home() {
               />
             </span>
           </div>
+
+          {ingredients.length > 0 && (
+            <div className="prefs-block">
+              <p className="prefs-label">Preferences (optional)</p>
+              <div className="prefs">
+                {PREFERENCES.map((p) => {
+                  const on = prefs.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`pref${on ? " on" : ""}`}
+                      onClick={() => togglePref(p.id)}
+                      aria-pressed={on}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="cta-row">
             <button

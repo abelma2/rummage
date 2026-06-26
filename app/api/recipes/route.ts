@@ -26,8 +26,19 @@ Return ONLY a JSON object of this exact shape:
 }
 No prose outside the JSON. Make the three recipes meaningfully different from one another.`;
 
+// Known recipe constraints. The client sends ids; we own the prompt text and
+// ignore anything we don't recognize (defensive — never trust the wire).
+const PREFERENCE_RULES: Record<string, string> = {
+  vegetarian: "Every recipe must be vegetarian — no meat, poultry, or fish.",
+  vegan: "Every recipe must be vegan — no animal products at all (no meat, dairy, eggs, or honey).",
+  "gluten-free": "Every recipe must be gluten-free.",
+  "dairy-free": "Every recipe must be dairy-free.",
+  quick: "Every recipe should take 30 minutes or less, start to finish.",
+  spicy: "Lean into bold, spicy flavors wherever it fits.",
+};
+
 export async function POST(req: Request) {
-  let body: { ingredients?: unknown };
+  let body: { ingredients?: unknown; preferences?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -41,6 +52,12 @@ export async function POST(req: Request) {
   if (ingredients.length === 0) {
     return NextResponse.json({ error: "Add at least one ingredient first." }, { status: 400 });
   }
+
+  const constraints = Array.isArray(body.preferences)
+    ? Array.from(new Set(body.preferences.filter((x): x is string => typeof x === "string")))
+        .map((id) => PREFERENCE_RULES[id])
+        .filter(Boolean)
+    : [];
 
   // Config errors happen before we start streaming, so they can still be a
   // normal HTTP error the client surfaces directly.
@@ -74,7 +91,14 @@ export async function POST(req: Request) {
             max_tokens: 2048,
             system: SYSTEM,
             messages: [
-              { role: "user", content: `Ingredients on hand: ${ingredients.join(", ")}.` },
+              {
+                role: "user",
+                content:
+                  `Ingredients on hand: ${ingredients.join(", ")}.` +
+                  (constraints.length
+                    ? `\n\nHard constraints — follow all of them:\n${constraints.map((c) => `- ${c}`).join("\n")}`
+                    : ""),
+              },
             ],
           },
           { signal: ac.signal }
