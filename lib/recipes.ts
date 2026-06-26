@@ -71,20 +71,17 @@ export function parsePartialRecipes(text: string): Recipe[] {
 
 /**
  * Return the text inside the recipes array (`[ ... ]`), without the brackets.
- * Prefers the array that follows a "recipes" key; falls back to the first array.
- * If the array hasn't closed yet, returns everything after the opening bracket.
+ * Scans string-aware so a `[` inside a string value can't be mistaken for the
+ * array — the model's shape is `{"recipes":[...]}`, so the first *structural*
+ * bracket is the array (this also covers a defensive bare-array response). If
+ * the array hasn't closed yet, returns everything after the opening bracket.
  */
 function extractArrayBody(text: string): string | null {
-  let open = -1;
-  const key = text.indexOf('"recipes"');
-  if (key !== -1) open = text.indexOf("[", key);
-  if (open === -1) open = text.indexOf("[");
-  if (open === -1) return null;
-
-  let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let i = open; i < text.length; i++) {
+  let open = -1;
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (inString) {
       if (escaped) escaped = false;
@@ -92,14 +89,21 @@ function extractArrayBody(text: string): string | null {
       else if (ch === '"') inString = false;
       continue;
     }
-    if (ch === '"') inString = true;
-    else if (ch === "[" || ch === "{") depth++;
-    else if (ch === "]" || ch === "}") {
+    if (ch === '"') {
+      inString = true;
+    } else if (open === -1) {
+      if (ch === "[") {
+        open = i; // first structural bracket — the recipes array
+        depth = 1;
+      }
+    } else if (ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === "]" || ch === "}") {
       depth--;
       if (depth === 0) return text.slice(open + 1, i); // matching close bracket
     }
   }
-  return text.slice(open + 1); // not closed yet — take the rest
+  return open === -1 ? null : text.slice(open + 1); // not closed yet (or no array)
 }
 
 /** Split on commas at depth 0 (ignoring commas inside strings or nested brackets). */

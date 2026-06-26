@@ -74,38 +74,48 @@ async function streamRecipes(
   let buffer = "";
   let finished = false;
 
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    let sep: number;
-    while ((sep = buffer.indexOf("\n\n")) !== -1) {
-      const frame = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
+      let sep: number;
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
 
-      const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
-      if (!dataLine) continue;
-      const payload = dataLine.slice(5).trim();
-      if (!payload) continue;
+        const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
+        if (!dataLine) continue;
+        const payload = dataLine.slice(5).trim();
+        if (!payload) continue;
 
-      let event: RecipeStreamEvent;
-      try {
-        event = JSON.parse(payload) as RecipeStreamEvent;
-      } catch {
-        continue; // ignore anything unparseable
-      }
+        let event: RecipeStreamEvent;
+        try {
+          event = JSON.parse(payload) as RecipeStreamEvent;
+        } catch {
+          continue; // ignore anything unparseable
+        }
 
-      if (event.type === "recipes" || event.type === "done") {
-        onRecipes(event.recipes);
-        if (event.type === "done") finished = true;
-      } else if (event.type === "error") {
-        throw new Error(event.error);
+        // Defensive even though we own the server: never trust the wire shape.
+        if (event.type === "recipes" || event.type === "done") {
+          if (Array.isArray(event.recipes)) onRecipes(event.recipes);
+          if (event.type === "done") finished = true;
+        } else if (event.type === "error") {
+          throw new Error(typeof event.error === "string" ? event.error : "Couldn't build recipes.");
+        }
       }
     }
-  }
 
-  if (!finished) throw new Error("The recipe stream ended early. Try again.");
+    if (!finished) throw new Error("The recipe stream ended early. Try again.");
+  } finally {
+    // On any early exit (error/abort), cancel so the server stops generating.
+    try {
+      await reader.cancel();
+    } catch {
+      // stream already closed
+    }
+  }
 }
 
 export default function Home() {
