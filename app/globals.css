@@ -164,6 +164,31 @@ body {
   display: none;
 }
 
+/* "Try an example" affordance under the dropzone */
+.example-line {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin: 14px 0 0;
+}
+.example-btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--herb);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--herb-soft);
+}
+.example-btn:hover:not(:disabled) {
+  border-bottom-color: var(--herb);
+}
+.example-btn:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 /* preview state */
 .preview {
   position: relative;

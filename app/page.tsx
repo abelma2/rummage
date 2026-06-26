@@ -166,6 +166,20 @@ export default function Home() {
     }
   }, []);
 
+  // Run a bundled sample image through the same pipeline, so first-time
+  // visitors can see the whole flow without a fridge photo handy.
+  const loadExample = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch("/sample-pantry.svg");
+      if (!res.ok) throw new Error("missing");
+      const blob = await res.blob();
+      await handleFile(new File([blob], "sample-pantry.svg", { type: "image/svg+xml" }));
+    } catch {
+      setError("Couldn't load the example. Try uploading a photo instead.");
+    }
+  }, [handleFile]);
+
   const reset = () => {
     setPreviewUrl(null);
     setIngredients([]);
@@ -253,31 +267,39 @@ export default function Home() {
       />
 
       {!previewUrl ? (
-        <div
-          className={`drop${dragging ? " dragging" : ""}`}
-          role="button"
-          tabIndex={0}
-          aria-label="Upload a photo of your ingredients"
-          onClick={openPicker}
-          onKeyDown={onZoneKey}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-        >
-          <svg className="drop-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M3 8a2 2 0 0 1 2-2h1.5l1-1.5A1 1 0 0 1 9.3 4h5.4a1 1 0 0 1 .8.5l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z"
-              stroke="currentColor"
-              strokeWidth="1.7"
-            />
-            <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.7" />
-          </svg>
-          <span className="drop-title">Drop a photo, or tap to choose</span>
-          <span className="drop-sub">A fridge, a pantry shelf, or whatever's on the counter</span>
-        </div>
+        <>
+          <div
+            className={`drop${dragging ? " dragging" : ""}`}
+            role="button"
+            tabIndex={0}
+            aria-label="Upload a photo of your ingredients"
+            onClick={openPicker}
+            onKeyDown={onZoneKey}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+          >
+            <svg className="drop-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M3 8a2 2 0 0 1 2-2h1.5l1-1.5A1 1 0 0 1 9.3 4h5.4a1 1 0 0 1 .8.5l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              />
+              <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+            </svg>
+            <span className="drop-title">Drop a photo, or tap to choose</span>
+            <span className="drop-sub">A fridge, a pantry shelf, or whatever's on the counter</span>
+          </div>
+          <p className="example-line">
+            No fridge handy?{" "}
+            <button type="button" className="example-btn" onClick={loadExample} disabled={busy}>
+              Try an example
+            </button>
+          </p>
+        </>
       ) : (
         <div className="preview">
           <img src={previewUrl} alt="Your ingredients" />
