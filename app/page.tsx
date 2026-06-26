@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, type DragEvent, type KeyboardEvent } from "react";
-import type { Recipe, IngredientsResponse, RecipeStreamEvent } from "@/lib/types";
+import type { Recipe, Detection, IngredientsResponse, RecipeStreamEvent } from "@/lib/types";
 
 const MAX_EDGE = 1024;
 
@@ -143,6 +143,8 @@ export default function Home() {
   const [newItem, setNewItem] = useState("");
   const [detected, setDetected] = useState(false); // a detection pass has completed
   const [prefs, setPrefs] = useState<string[]>([]); // sticky dietary/recipe filters
+  const [boxes, setBoxes] = useState<Detection[]>([]); // detected-item locations for the overlay
+  const [showLabels, setShowLabels] = useState(true);
 
   const handleFile = useCallback(async (file: File | undefined) => {
     if (!file) return;
@@ -153,6 +155,7 @@ export default function Home() {
     setError(null);
     setRecipes([]);
     setIngredients([]);
+    setBoxes([]);
     setDetected(false);
 
     let processed: { dataUrl: string; base64: string };
@@ -171,6 +174,7 @@ export default function Home() {
         mediaType: "image/jpeg",
       });
       setIngredients(data.ingredients);
+      setBoxes(Array.isArray(data.boxes) ? data.boxes : []);
       setDetected(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't read the photo.");
@@ -196,6 +200,7 @@ export default function Home() {
   const reset = () => {
     setPreviewUrl(null);
     setIngredients([]);
+    setBoxes([]);
     setRecipes([]);
     setError(null);
     setDetected(false);
@@ -243,6 +248,8 @@ export default function Home() {
   };
 
   const busy = detecting || cooking;
+  // Labels follow the editable list: removing a chip removes its label too.
+  const visibleBoxes = boxes.filter((b) => ingredients.includes(b.name));
 
   return (
     <div className="wrap">
@@ -319,12 +326,46 @@ export default function Home() {
       ) : (
         <div className="preview">
           <img src={previewUrl} alt="Your ingredients" />
-          <button className="reset-photo" onClick={reset} type="button">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 12a9 9 0 1 1 3 6.7M3 20v-5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Replace
-          </button>
+          {showLabels && visibleBoxes.length > 0 && (
+            <div className="anno-layer" aria-hidden="true">
+              {visibleBoxes.map((b, i) => (
+                <div
+                  className="anno"
+                  key={`${b.name}-${i}`}
+                  style={{
+                    left: `${b.box[0] * 100}%`,
+                    top: `${b.box[1] * 100}%`,
+                    width: `${b.box[2] * 100}%`,
+                    height: `${b.box[3] * 100}%`,
+                  }}
+                >
+                  <span className="anno-label">{b.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="preview-tools">
+            {boxes.length > 0 && (
+              <button
+                className="pill-btn"
+                onClick={() => setShowLabels((v) => !v)}
+                type="button"
+                aria-pressed={showLabels}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 8.4V5a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6l9 9a2 2 0 0 1 0 2.8l-4.6 4.6a2 2 0 0 1-2.8 0l-9-9A2 2 0 0 1 3 8.4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                  <circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" />
+                </svg>
+                {showLabels ? "Hide labels" : "Show labels"}
+              </button>
+            )}
+            <button className="pill-btn" onClick={reset} type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 1 3 6.7M3 20v-5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Replace
+            </button>
+          </div>
         </div>
       )}
 

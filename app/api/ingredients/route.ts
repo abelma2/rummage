@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
 import { checkRateLimit } from "@/lib/ratelimit";
-import type { IngredientsResponse } from "@/lib/types";
+import type { Detection, IngredientsResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -14,13 +14,23 @@ const ALLOWED_MEDIA = new Set([
 ]);
 
 const SYSTEM = `You identify food ingredients visible in a photo of a fridge, pantry, or kitchen counter.
-Return ONLY a JSON array of strings — the distinct, usable food items you can actually see.
+Return ONLY a JSON object of this exact shape:
+{ "items": [ { "name": "<lowercase ingredient>", "box": [x, y, w, h] } ] }
 Rules:
-- Use simple, common lowercase names ("eggs", "cheddar", "baby spinach", "soy sauce").
-- Merge duplicates; skip anything that is not food; skip items you cannot identify with reasonable confidence.
-- Prefer the ingredient over the brand.
+- Use simple, common lowercase names ("eggs", "cheddar", "baby spinach", "soy sauce"); prefer the ingredient over the brand.
+- "box" locates the item in the image as fractions from 0 to 1, origin at the TOP-LEFT: x,y is the top-left corner of the item, w,h is its width and height.
+- One entry per visible item. It's fine to list the same name more than once if you see multiple; skip non-food and anything you can't identify with reasonable confidence.
 - Return between 0 and 25 items.
-No prose, no keys, no explanation — just the JSON array.`;
+No prose, no extra keys — just the JSON object.`;
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+function coerceBox(raw: unknown): Detection["box"] | null {
+  if (!Array.isArray(raw) || raw.length !== 4) return null;
+  if (!raw.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  const [x, y, w, h] = (raw as number[]).map(clamp01);
+  return w > 0 && h > 0 ? [x, y, w, h] : null;
+}
 
 export async function POST(req: Request) {
   const rate = await checkRateLimit(req);
@@ -77,19 +87,36 @@ export async function POST(req: Request) {
       if (block.type === "text") text += block.text;
     }
 
-    const parsed = extractJson<string[]>(text);
-    const ingredients = Array.isArray(parsed)
-      ? Array.from(
-          new Set(
-            parsed
-              .filter((x): x is string => typeof x === "string")
-              .map((x) => x.trim().toLowerCase())
-              .filter(Boolean)
-          )
-        ).slice(0, 25)
-      : [];
+    // Accept either the {items:[...]} object or a bare array, of objects or
+    // plain strings — defensively coerce whatever shape comes back.
+    const parsed = extractJson<unknown>(text);
+    const rawItems = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { items?: unknown })?.items)
+        ? (parsed as { items: unknown[] }).items
+        : [];
 
-    const response: IngredientsResponse = { ingredients };
+    const names = new Set<string>();
+    const boxes: Detection[] = [];
+    for (const item of rawItems) {
+      const name =
+        typeof item === "string"
+          ? item.trim().toLowerCase()
+          : item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string"
+            ? (item as { name: string }).name.trim().toLowerCase()
+            : "";
+      if (!name) continue;
+      names.add(name);
+
+      const box = item && typeof item === "object" ? coerceBox((item as { box?: unknown }).box) : null;
+      if (box && boxes.length < 25) boxes.push({ name, box });
+    }
+
+    const ingredients = Array.from(names).slice(0, 25);
+    const response: IngredientsResponse = {
+      ingredients,
+      boxes: boxes.filter((b) => ingredients.includes(b.name)),
+    };
     return NextResponse.json(response);
   } catch (err) {
     const message =

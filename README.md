@@ -18,7 +18,8 @@ have. One clean flow — upload, detect, cook — built on [Claude](https://www.
 It's deliberately a two-step pipeline, so each half of the "multimodal" story is visible:
 
 1. **See it** — the photo is downscaled in the browser, then sent to Claude's vision
-   model, which returns a structured list of the food it can identify.
+   model, which returns a structured list of the food it can identify — plus rough
+   locations, so detected items are **labelled right on your photo**.
 2. **Cook it** — you tweak the detected ingredients (remove misreads, add what the
    camera missed), optionally flip on dietary filters (vegetarian, gluten-free,
    quick, …), and Claude turns the final list into three recipes with steps,
@@ -120,7 +121,6 @@ lib/
 ## Ideas for next steps
 
 - "Cook mode" — step-by-step view with timers
-- Annotated photo: overlay detected-ingredient labels on the uploaded image
 - A shareable URL for a generated recipe
 
 ## License

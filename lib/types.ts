@@ -10,8 +10,16 @@ export interface Recipe {
   steps: string[];
 }
 
+/** One detected item with its rough location, for the photo overlay. */
+export interface Detection {
+  name: string;
+  /** Normalized [x, y, w, h] as fractions of the image, top-left origin. */
+  box: [number, number, number, number];
+}
+
 export interface IngredientsResponse {
   ingredients: string[];
+  boxes: Detection[];
 }
 
 export interface RecipesResponse {
