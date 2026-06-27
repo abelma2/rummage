@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, MODEL } from "@/lib/anthropic";
 import { parsePartialItems } from "@/lib/recipes";
-import { checkRateLimit } from "@/lib/ratelimit";
 import type { Detection, IngredientsResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,16 +37,6 @@ function coerceBox(raw: unknown): Detection["box"] | null {
 }
 
 export async function POST(req: Request) {
-  const rate = await checkRateLimit(req);
-  if (!rate.ok) {
-    const init: ResponseInit = { status: 429 };
-    if (rate.retryAfter) init.headers = { "Retry-After": String(rate.retryAfter) };
-    return NextResponse.json(
-      { error: "This demo has a daily limit and you've reached it. Try again tomorrow." },
-      init
-    );
-  }
-
   let body: { image?: string; mediaType?: string };
   try {
     body = await req.json();

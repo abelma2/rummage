@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
 import { coerceDishes, constraintsFromPreferences } from "@/lib/recipes";
-import { checkRateLimit } from "@/lib/ratelimit";
 import type { DishIdea, DishesResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -28,16 +27,6 @@ Return ONLY a JSON object of this exact shape:
 No prose outside the JSON. Make the 6 ideas varied (different styles, efforts, and meals).`;
 
 export async function POST(req: Request) {
-  const rate = await checkRateLimit(req);
-  if (!rate.ok) {
-    const init: ResponseInit = { status: 429 };
-    if (rate.retryAfter) init.headers = { "Retry-After": String(rate.retryAfter) };
-    return NextResponse.json(
-      { error: "This demo has a daily limit and you've reached it. Try again tomorrow." },
-      init
-    );
-  }
-
   let body: { ingredients?: unknown; preferences?: unknown };
   try {
     body = await req.json();

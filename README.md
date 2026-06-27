@@ -105,27 +105,14 @@ Or manually:
 
 ## Configuration
 
-| Variable                   | Required | Default             | Notes                                                        |
-| -------------------------- | -------- | ------------------- | ------------------------------------------------------------ |
-| `ANTHROPIC_API_KEY`        | yes      | —                   | From the Anthropic console.                                  |
-| `ANTHROPIC_MODEL`          | no       | `claude-sonnet-4-6` | Swap to `claude-haiku-4-5-20251001` to cut cost.             |
-| `UPSTASH_REDIS_REST_URL`   | no       | —                   | Enables the per-IP rate limit (see below). Unset = no limit. |
-| `UPSTASH_REDIS_REST_TOKEN` | no       | —                   | Paired with the URL above.                                   |
-| `RATELIMIT_PER_DAY`        | no       | `30`                | Requests per IP per day once rate limiting is enabled.       |
+| Variable            | Required | Default             | Notes                                            |
+| ------------------- | -------- | ------------------- | ------------------------------------------------ |
+| `ANTHROPIC_API_KEY` | yes      | —                   | From the Anthropic console.                      |
+| `ANTHROPIC_MODEL`   | no       | `claude-sonnet-4-6` | Swap to `claude-haiku-4-5-20251001` to cut cost. |
 
 A run makes a vision call, then a cheap "dish ideas" call, then one recipe call
 per dish you actually cook — so browsing ideas is inexpensive. Sonnet keeps
 quality high; Haiku is noticeably cheaper if you're sharing a public demo.
-
-### Protecting a public demo
-
-The API routes call a paid model with your key, so a public link is a spend
-risk. All three routes are guarded by a per-IP daily rate limit
-(`lib/ratelimit.ts`). It's off until you configure it: create a free
-[Upstash](https://upstash.com) Redis database, set `UPSTASH_REDIS_REST_URL` and
-`UPSTASH_REDIS_REST_TOKEN`, and redeploy. The guard fails open — if Upstash is
-unreachable, requests are allowed rather than blocked — so it never takes the
-app down.
 
 ## Project structure
 
@@ -140,7 +127,6 @@ app/
 lib/
   anthropic.ts               # client + resilient JSON extraction
   recipes.ts                 # dish/recipe coercion + tolerant partial parser
-  ratelimit.ts               # optional per-IP daily cap (Upstash)
   types.ts                   # shared types + model config
 public/
   examples/                  # bundled sample photos for "Try an example"
