@@ -2,6 +2,8 @@
 
 **Photograph your fridge. Get recipes you can actually make.**
 
+[![CI](https://github.com/abelma2/rummage/actions/workflows/ci.yml/badge.svg)](https://github.com/abelma2/rummage/actions/workflows/ci.yml)
+
 Rummage is a small multimodal web app: point your camera at a fridge, pantry, or
 counter, and it reads the shelves and suggests dishes built around what you already
 have. One clean flow — upload, detect, cook — built on [Claude](https://www.anthropic.com).
@@ -125,7 +127,18 @@ lib/
   types.ts                   # shared types + model config
 public/
   examples/                  # bundled sample photos for "Try an example"
+tests/                       # Vitest unit tests (parsers + coercion)
 ```
+
+## Tests
+
+```bash
+npm test         # run the Vitest suite (parsers, coercion, the tolerant JSON parser)
+npm run typecheck
+```
+
+CI (GitHub Actions) runs the type-check, tests, and a production build on every
+push and pull request — see the badge up top.
 
 ## Ideas for next steps
 
