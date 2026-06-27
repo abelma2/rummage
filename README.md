@@ -9,7 +9,7 @@ Rummage is a small multimodal web app: point your camera at a fridge, pantry, or
 counter, and it reads the shelves and helps you cook what's already there. One
 guided flow — photograph, pick a dish, cook.
 
-**Live demo:** _add your Vercel URL here_
+**Live demo:** [rummage-recipes.vercel.app](https://rummage-recipes.vercel.app/)
 
 <!-- Add a screenshot or short GIF of the app here once deployed: -->
 <!-- ![Rummage](./docs/screenshot.png) -->
