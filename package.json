@@ -2,7 +2,7 @@
   "name": "rummage",
   "version": "1.0.0",
   "private": true,
-  "description": "Photograph your fridge, get recipes you can actually make. A multimodal demo built on Claude.",
+  "description": "Photograph your fridge, get recipes you can actually make. A multimodal demo.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

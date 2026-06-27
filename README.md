@@ -6,9 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
 Rummage is a small multimodal web app: point your camera at a fridge, pantry, or
-counter, and Claude reads the shelves and helps you cook what's already there.
-One guided flow — photograph, pick a dish, cook — built on
-[Claude](https://www.anthropic.com).
+counter, and it reads the shelves and helps you cook what's already there. One
+guided flow — photograph, pick a dish, cook.
 
 **Live demo:** _add your Vercel URL here_
 

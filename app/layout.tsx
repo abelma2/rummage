@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Rummage — cook what's in your fridge",
   description:
-    "Photograph your fridge or pantry and get recipes you can actually make tonight. A multimodal demo built on Claude.",
+    "Photograph your fridge or pantry and get recipes you can actually make tonight. A multimodal demo.",
 };
 
 export const viewport: Viewport = {

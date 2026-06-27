@@ -403,12 +403,6 @@ export default function Home() {
           </svg>
           <span className="wordmark">Rummage</span>
         </button>
-        <span className="mast-note">
-          built on{" "}
-          <a href="https://docs.claude.com/en/api/overview" target="_blank" rel="noreferrer">
-            Claude
-          </a>
-        </span>
       </header>
 
       <input
