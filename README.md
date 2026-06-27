@@ -42,6 +42,8 @@ A few details worth noting:
   parse is authoritative, so the live view is display-only and self-correcting.
 - **You stay in control.** Detection is a suggestion, not the final word — the
   ingredient list is fully editable before any recipe is generated.
+- **Snap more than one.** Add several photos — the fridge, the spice cabinet, the
+  counter — and the detected ingredients accumulate into a single list.
 - **Try it without a fridge.** A bundled sample image (`public/sample-pantry.svg`)
   powers a "Try an example" button, so first-time visitors can run the whole
   pipeline in one click.

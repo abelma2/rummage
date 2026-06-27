@@ -16,6 +16,10 @@ const PREFERENCES: { id: string; label: string }[] = [
   { id: "spicy", label: "Make it spicy" },
 ];
 
+// One captured photo: its (downscaled) image plus the boxes detected in it.
+// Ingredients accumulate across shots; boxes stay per-shot for the overlay.
+type Shot = { id: number; url: string; boxes: Detection[] };
+
 // Downscale + re-encode client-side so uploads stay small and the vision call is fast/cheap.
 function processImage(file: File): Promise<{ dataUrl: string; base64: string }> {
   return new Promise((resolve, reject) => {
@@ -133,8 +137,10 @@ async function streamRecipes(
 export default function Home() {
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [shots, setShots] = useState<Shot[]>([]); // one or more captured photos
+  const [activeId, setActiveId] = useState<number | null>(null); // which shot is shown
+  const nextId = useRef(0);
+  const [ingredients, setIngredients] = useState<string[]>([]); // merged across shots
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [cooking, setCooking] = useState(false);
@@ -143,9 +149,10 @@ export default function Home() {
   const [newItem, setNewItem] = useState("");
   const [detected, setDetected] = useState(false); // a detection pass has completed
   const [prefs, setPrefs] = useState<string[]>([]); // sticky dietary/recipe filters
-  const [boxes, setBoxes] = useState<Detection[]>([]); // detected-item locations for the overlay
   const [showLabels, setShowLabels] = useState(true);
 
+  // Add a photo: detected ingredients MERGE into the list (so a fridge shot, a
+  // spice-cabinet shot, and a counter shot accumulate) rather than resetting it.
   const handleFile = useCallback(async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -153,10 +160,7 @@ export default function Home() {
       return;
     }
     setError(null);
-    setRecipes([]);
-    setIngredients([]);
-    setBoxes([]);
-    setDetected(false);
+    setRecipes([]); // the ingredient set is about to change
 
     let processed: { dataUrl: string; base64: string };
     try {
@@ -165,7 +169,10 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "Couldn't read that image.");
       return;
     }
-    setPreviewUrl(processed.dataUrl);
+
+    const id = nextId.current++;
+    setShots((prev) => [...prev, { id, url: processed.dataUrl, boxes: [] }]);
+    setActiveId(id);
 
     setDetecting(true);
     try {
@@ -173,11 +180,16 @@ export default function Home() {
         image: processed.base64,
         mediaType: "image/jpeg",
       });
-      setIngredients(data.ingredients);
-      setBoxes(Array.isArray(data.boxes) ? data.boxes : []);
+      const detectedBoxes = Array.isArray(data.boxes) ? data.boxes : [];
+      setShots((prev) => prev.map((s) => (s.id === id ? { ...s, boxes: detectedBoxes } : s)));
+      setIngredients((prev) => Array.from(new Set([...prev, ...data.ingredients])));
       setDetected(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't read the photo.");
+      // Drop the shot that failed so the user can retry cleanly; fall back to
+      // the previous shot if there is one.
+      setShots((prev) => prev.filter((s) => s.id !== id));
+      setActiveId(null);
     } finally {
       setDetecting(false);
     }
@@ -198,9 +210,9 @@ export default function Home() {
   }, [handleFile]);
 
   const reset = () => {
-    setPreviewUrl(null);
+    setShots([]);
+    setActiveId(null);
     setIngredients([]);
-    setBoxes([]);
     setRecipes([]);
     setError(null);
     setDetected(false);
@@ -248,8 +260,10 @@ export default function Home() {
   };
 
   const busy = detecting || cooking;
+  const hasPhoto = shots.length > 0;
+  const activeShot = shots.find((s) => s.id === activeId) ?? shots[shots.length - 1] ?? null;
   // Labels follow the editable list: removing a chip removes its label too.
-  const visibleBoxes = boxes.filter((b) => ingredients.includes(b.name));
+  const visibleBoxes = activeShot ? activeShot.boxes.filter((b) => ingredients.includes(b.name)) : [];
 
   return (
     <div className="wrap">
@@ -285,11 +299,15 @@ export default function Home() {
         ref={fileInput}
         type="file"
         accept="image/*"
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = ""; // allow re-picking the same file
+          handleFile(f);
+        }}
         hidden
       />
 
-      {!previewUrl ? (
+      {!hasPhoto ? (
         <>
           <div
             className={`drop${dragging ? " dragging" : ""}`}
@@ -324,46 +342,75 @@ export default function Home() {
           </p>
         </>
       ) : (
-        <div className="preview">
-          <img src={previewUrl} alt="Your ingredients" />
-          {showLabels && visibleBoxes.length > 0 && (
-            <div className="anno-layer" aria-hidden="true">
-              {visibleBoxes.map((b, i) => (
-                <div
-                  className="anno"
-                  key={`${b.name}-${i}`}
-                  style={{
-                    left: `${b.box[0] * 100}%`,
-                    top: `${b.box[1] * 100}%`,
-                    width: `${b.box[2] * 100}%`,
-                    height: `${b.box[3] * 100}%`,
-                  }}
-                >
-                  <span className="anno-label">{b.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="preview-tools">
-            {boxes.length > 0 && (
-              <button
-                className="pill-btn"
-                onClick={() => setShowLabels((v) => !v)}
-                type="button"
-                aria-pressed={showLabels}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M3 8.4V5a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6l9 9a2 2 0 0 1 0 2.8l-4.6 4.6a2 2 0 0 1-2.8 0l-9-9A2 2 0 0 1 3 8.4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  <circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" />
-                </svg>
-                {showLabels ? "Hide labels" : "Show labels"}
-              </button>
+        <div className="capture">
+          <div className="preview">
+            {activeShot && <img src={activeShot.url} alt="Your ingredients" />}
+            {showLabels && visibleBoxes.length > 0 && (
+              <div className="anno-layer" aria-hidden="true">
+                {visibleBoxes.map((b, i) => (
+                  <div
+                    className="anno"
+                    key={`${b.name}-${i}`}
+                    style={{
+                      left: `${b.box[0] * 100}%`,
+                      top: `${b.box[1] * 100}%`,
+                      width: `${b.box[2] * 100}%`,
+                      height: `${b.box[3] * 100}%`,
+                    }}
+                  >
+                    <span className="anno-label">{b.name}</span>
+                  </div>
+                ))}
+              </div>
             )}
-            <button className="pill-btn" onClick={reset} type="button">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M3 12a9 9 0 1 1 3 6.7M3 20v-5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <div className="preview-tools">
+              {activeShot && activeShot.boxes.length > 0 && (
+                <button
+                  className="pill-btn"
+                  onClick={() => setShowLabels((v) => !v)}
+                  type="button"
+                  aria-pressed={showLabels}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 8.4V5a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6l9 9a2 2 0 0 1 0 2.8l-4.6 4.6a2 2 0 0 1-2.8 0l-9-9A2 2 0 0 1 3 8.4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                    <circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" />
+                  </svg>
+                  {showLabels ? "Hide labels" : "Show labels"}
+                </button>
+              )}
+              <button className="pill-btn" onClick={reset} type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 12a9 9 0 1 1 3 6.7M3 20v-5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Start over
+              </button>
+            </div>
+          </div>
+
+          <div className="shots">
+            {shots.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`shot-thumb${s.id === activeShot?.id ? " active" : ""}`}
+                onClick={() => setActiveId(s.id)}
+                aria-label={`Photo ${i + 1}`}
+                aria-pressed={s.id === activeShot?.id}
+              >
+                <img src={s.url} alt="" />
+              </button>
+            ))}
+            <button
+              type="button"
+              className="shot-add"
+              onClick={openPicker}
+              disabled={detecting}
+              aria-label="Add another photo"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 6v12M6 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              Replace
+              Add photo
             </button>
           </div>
         </div>
