@@ -203,46 +203,53 @@ export default function Home() {
     setRecipe(null);
   };
 
-  // Add a photo: detected ingredients MERGE into the list (so a fridge shot, a
-  // spice-cabinet shot, and a counter shot accumulate) rather than resetting it.
-  const handleFile = useCallback(async (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
+  // Add one or more photos at once. Every detected ingredient list MERGES into
+  // the running set (so the fridge, the spice cabinet, and the counter — or a
+  // whole batch picked together — accumulate). Photos are downscaled and shown
+  // as thumbnails first, then detected in parallel.
+  const handleFiles = useCallback(async (fileList: FileList | File[] | null) => {
+    const files = Array.from(fileList ?? []).filter((f) => f.type.startsWith("image/"));
+    if (files.length === 0) {
       setError("Please choose a photo (JPG, PNG, or WebP).");
       return;
     }
     setError(null);
     clearMenu(); // the ingredient set is about to change
-
-    let processed: { dataUrl: string; base64: string };
-    try {
-      processed = await processImage(file);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't read that photo.");
-      return;
-    }
-
-    const id = nextId.current++;
-    setShots((prev) => [...prev, { id, url: processed.dataUrl, boxes: [] }]);
-    setActiveId(id);
-
     setDetecting(true);
-    try {
-      const data = await postJson<IngredientsResponse>("/api/ingredients", {
-        image: processed.base64,
-        mediaType: "image/jpeg",
-      });
-      const detectedBoxes = Array.isArray(data.boxes) ? data.boxes : [];
-      setShots((prev) => prev.map((s) => (s.id === id ? { ...s, boxes: detectedBoxes } : s)));
-      setIngredients((prev) => Array.from(new Set([...prev, ...data.ingredients])));
-      setDetected(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't read the photo.");
-      setShots((prev) => prev.filter((s) => s.id !== id));
-      setActiveId(null);
-    } finally {
-      setDetecting(false);
+
+    // 1) Downscale + add a thumbnail for each, in order.
+    const pending: { id: number; base64: string }[] = [];
+    for (const file of files) {
+      try {
+        const processed = await processImage(file);
+        const id = nextId.current++;
+        setShots((prev) => [...prev, { id, url: processed.dataUrl, boxes: [] }]);
+        pending.push({ id, base64: processed.base64 });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't read that photo.");
+      }
     }
+    if (pending.length > 0) setActiveId(pending[0].id);
+
+    // 2) Detect all in parallel; merge ingredients as each returns.
+    await Promise.all(
+      pending.map(async ({ id, base64 }) => {
+        try {
+          const data = await postJson<IngredientsResponse>("/api/ingredients", {
+            image: base64,
+            mediaType: "image/jpeg",
+          });
+          const detectedBoxes = Array.isArray(data.boxes) ? data.boxes : [];
+          setShots((prev) => prev.map((s) => (s.id === id ? { ...s, boxes: detectedBoxes } : s)));
+          setIngredients((prev) => Array.from(new Set([...prev, ...data.ingredients])));
+          setDetected(true);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Couldn't read a photo.");
+          setShots((prev) => prev.filter((s) => s.id !== id));
+        }
+      })
+    );
+    setDetecting(false);
   }, []);
 
   const loadExample = useCallback(async () => {
@@ -252,11 +259,11 @@ export default function Home() {
       const res = await fetch(`/examples/${name}`);
       if (!res.ok) throw new Error("missing");
       const blob = await res.blob();
-      await handleFile(new File([blob], name, { type: blob.type || "image/jpeg" }));
+      await handleFiles([new File([blob], name, { type: blob.type || "image/jpeg" })]);
     } catch {
       setError("Couldn't load the example. Try a photo of your own instead.");
     }
-  }, [handleFile]);
+  }, [handleFiles]);
 
   const reset = () => {
     setShots([]);
@@ -314,7 +321,7 @@ export default function Home() {
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    handleFile(e.dataTransfer.files?.[0]);
+    handleFiles(e.dataTransfer.files);
   };
 
   const openPicker = () => fileInput.current?.click();
@@ -339,7 +346,7 @@ export default function Home() {
   return (
     <div className="wrap">
       <header className="mast">
-        <div className="brand">
+        <button type="button" className="brand" onClick={reset} aria-label="Rummage — back to start">
           <svg className="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <rect x="7" y="3" width="18" height="26" rx="4" stroke="var(--ink)" strokeWidth="2" />
             <line x1="7" y1="13" x2="25" y2="13" stroke="var(--ink)" strokeWidth="2" />
@@ -347,7 +354,7 @@ export default function Home() {
             <line x1="11" y1="17" x2="11" y2="21" stroke="var(--herb)" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <span className="wordmark">Rummage</span>
-        </div>
+        </button>
         <span className="mast-note">
           built on{" "}
           <a href="https://docs.claude.com/en/api/overview" target="_blank" rel="noreferrer">
@@ -360,10 +367,11 @@ export default function Home() {
         ref={fileInput}
         type="file"
         accept="image/*"
+        multiple
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          handleFile(f);
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          e.target.value = ""; // allow re-picking the same files
+          handleFiles(files);
         }}
         hidden
       />
@@ -413,7 +421,7 @@ export default function Home() {
                   <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.7" />
                 </svg>
                 <span className="drop-title">Take a photo of your food</span>
-                <span className="drop-sub">A fridge, a cupboard, or the counter — anything works</span>
+                <span className="drop-sub">A fridge, a cupboard, or the counter — pick one or several</span>
               </div>
               <p className="example-line">
                 No photo handy?{" "}

@@ -60,6 +60,15 @@ body {
   display: flex;
   align-items: center;
   gap: 11px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.brand:hover .wordmark {
+  color: var(--herb);
 }
 
 .mark {
