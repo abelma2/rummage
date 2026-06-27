@@ -961,3 +961,10 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* screen regions get focus moved to them programmatically (for screen readers)
+   on each step change — they're not tabbable, so suppress the stray outline */
+.hero h1:focus,
+.step:focus {
+  outline: none;
+}

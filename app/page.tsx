@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, type DragEvent, type KeyboardEvent } from "react";
+import { useRef, useState, useCallback, useEffect, type DragEvent, type KeyboardEvent } from "react";
 import type {
   Recipe,
   Detection,
@@ -37,6 +37,25 @@ const EXAMPLES = [
   "spice_3.jpg",
   "spices_1.jpg",
 ];
+
+const MAX_CONCURRENT_DETECTS = 3; // don't fire dozens of vision calls at once
+const MAX_FILE_BYTES = 30 * 1024 * 1024; // 30 MB — guards against pathological files
+
+// iPhones default to HEIC, which most non-Safari browsers can't decode to canvas.
+function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+  return type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+// Run async tasks with a max concurrency.
+async function runWithLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 
 // One captured photo: its (downscaled) image plus the boxes detected in it.
 type Shot = { id: number; url: string; boxes: Detection[] };
@@ -178,6 +197,8 @@ export default function Home() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const nextId = useRef(0);
+  const focusTarget = useRef<HTMLElement | null>(null); // heading/region to focus on screen change
+  const firstRender = useRef(true);
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [showLabels, setShowLabels] = useState(true);
@@ -195,6 +216,11 @@ export default function Home() {
   const [detected, setDetected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [batchCount, setBatchCount] = useState(0); // photos in the current upload batch
+
+  const setFocusTarget = useCallback((el: HTMLElement | null) => {
+    focusTarget.current = el;
+  }, []);
 
   const clearMenu = () => {
     setDishes([]);
@@ -208,18 +234,32 @@ export default function Home() {
   // whole batch picked together — accumulate). Photos are downscaled and shown
   // as thumbnails first, then detected in parallel.
   const handleFiles = useCallback(async (fileList: FileList | File[] | null) => {
-    const files = Array.from(fileList ?? []).filter((f) => f.type.startsWith("image/"));
-    if (files.length === 0) {
-      setError("Please choose a photo (JPG, PNG, or WebP).");
+    const images: File[] = [];
+    let skip: "heic" | "size" | "type" | null = null;
+    for (const f of Array.from(fileList ?? [])) {
+      if (isHeic(f)) skip ??= "heic";
+      else if (!f.type.startsWith("image/")) skip ??= "type";
+      else if (f.size > MAX_FILE_BYTES) skip ??= "size";
+      else images.push(f);
+    }
+    if (images.length === 0) {
+      setError(
+        skip === "heic"
+          ? "iPhone HEIC photos don't open in this browser — save or share the photo as JPEG first (or use Safari)."
+          : skip === "size"
+            ? "That photo's too large — try one under 30 MB."
+            : "Please choose a photo (JPG, PNG, or WebP)."
+      );
       return;
     }
     setError(null);
     clearMenu(); // the ingredient set is about to change
+    setBatchCount(images.length);
     setDetecting(true);
 
     // 1) Downscale + add a thumbnail for each, in order.
     const pending: { id: number; base64: string }[] = [];
-    for (const file of files) {
+    for (const file of images) {
       try {
         const processed = await processImage(file);
         const id = nextId.current++;
@@ -231,24 +271,22 @@ export default function Home() {
     }
     if (pending.length > 0) setActiveId(pending[0].id);
 
-    // 2) Detect all in parallel; merge ingredients as each returns.
-    await Promise.all(
-      pending.map(async ({ id, base64 }) => {
-        try {
-          const data = await postJson<IngredientsResponse>("/api/ingredients", {
-            image: base64,
-            mediaType: "image/jpeg",
-          });
-          const detectedBoxes = Array.isArray(data.boxes) ? data.boxes : [];
-          setShots((prev) => prev.map((s) => (s.id === id ? { ...s, boxes: detectedBoxes } : s)));
-          setIngredients((prev) => Array.from(new Set([...prev, ...data.ingredients])));
-          setDetected(true);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Couldn't read a photo.");
-          setShots((prev) => prev.filter((s) => s.id !== id));
-        }
-      })
-    );
+    // 2) Detect a few at a time; merge ingredients as each returns.
+    await runWithLimit(pending, MAX_CONCURRENT_DETECTS, async ({ id, base64 }) => {
+      try {
+        const data = await postJson<IngredientsResponse>("/api/ingredients", {
+          image: base64,
+          mediaType: "image/jpeg",
+        });
+        const detectedBoxes = Array.isArray(data.boxes) ? data.boxes : [];
+        setShots((prev) => prev.map((s) => (s.id === id ? { ...s, boxes: detectedBoxes } : s)));
+        setIngredients((prev) => Array.from(new Set([...prev, ...data.ingredients])));
+        setDetected(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't read a photo.");
+        setShots((prev) => prev.filter((s) => s.id !== id));
+      }
+    });
     setDetecting(false);
   }, []);
 
@@ -343,6 +381,16 @@ export default function Home() {
       ? "ideas"
       : "capture";
 
+  // Move focus to the new screen's heading/region on each transition (but not on
+  // first load) so keyboard and screen-reader users follow the flow.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    focusTarget.current?.focus();
+  }, [screen]);
+
   return (
     <div className="wrap">
       <header className="mast">
@@ -376,6 +424,8 @@ export default function Home() {
         hidden
       />
 
+      <main>
+
       {error && (
         <div className="error" role="alert">
           <strong>Hmm. </strong>
@@ -387,7 +437,7 @@ export default function Home() {
       {screen === "capture" && (
         <>
           <section className="hero">
-            <h1>
+            <h1 ref={setFocusTarget} tabIndex={-1}>
               Cook what you <span className="pop">have.</span>
             </h1>
             <p className="lede">
@@ -498,7 +548,9 @@ export default function Home() {
             </div>
           )}
 
-          {detecting && <Loading text="Looking at your food…" />}
+              {detecting && (
+            <Loading text={batchCount > 1 ? `Looking at your ${batchCount} photos…` : "Looking at your food…"} />
+          )}
 
           {detected && (
             <section className="panel">
@@ -585,7 +637,7 @@ export default function Home() {
 
       {/* ───────── SCREEN 2 — pick a dish ───────── */}
       {screen === "ideas" && (
-        <section className="step">
+        <section className="step" ref={setFocusTarget} tabIndex={-1} aria-label="Dish ideas">
           <button className="back-btn" type="button" onClick={() => clearMenu()}>
             ← Back to my food
           </button>
@@ -619,7 +671,7 @@ export default function Home() {
 
       {/* ───────── SCREEN 3 — the recipe ───────── */}
       {screen === "recipe" && (
-        <section className="step">
+        <section className="step" ref={setFocusTarget} tabIndex={-1} aria-label="Recipe">
           <button className="back-btn" type="button" onClick={() => { setChosenDish(null); setRecipe(null); }}>
             ← See other dishes
           </button>
@@ -667,6 +719,8 @@ export default function Home() {
           )}
         </section>
       )}
+
+      </main>
 
       <footer className="foot">
         <span>Rummage · a multimodal demo</span>
