@@ -232,9 +232,9 @@ describe("equipmentConstraint", () => {
     expect(c).toMatch(/ONLY use/);
   });
   it("combines multiple items, dedups, and ignores unknown ids", () => {
-    const c = equipmentConstraint(["stovetop", "pan", "stovetop", "made-up"]) ?? "";
+    const c = equipmentConstraint(["stovetop", "oven", "stovetop", "made-up"]) ?? "";
     expect(c).toMatch(/stovetop/i);
-    expect(c).toMatch(/pan|skillet/i);
+    expect(c).toMatch(/oven/i);
     expect(c).not.toMatch(/made-up/i);
   });
   it("returns null when nothing valid is selected", () => {

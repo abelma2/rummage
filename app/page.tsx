@@ -30,8 +30,6 @@ const EQUIPMENT: { id: string; label: string }[] = [
   { id: "oven", label: "Oven" },
   { id: "microwave", label: "Microwave" },
   { id: "air-fryer", label: "Air fryer" },
-  { id: "pan", label: "Pan" },
-  { id: "pot", label: "Pot" },
 ];
 
 // Bundled real sample photos (in /public/examples) — one is picked at random.

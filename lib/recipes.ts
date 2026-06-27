@@ -40,8 +40,6 @@ export const EQUIPMENT: Record<string, string> = {
   oven: "an oven",
   microwave: "a microwave",
   "air-fryer": "an air fryer",
-  pan: "a frying pan / skillet",
-  pot: "a pot / saucepan",
 };
 
 /**
@@ -54,7 +52,7 @@ export function equipmentConstraint(equipment: unknown): string | null {
     .map((id) => EQUIPMENT[id])
     .filter(Boolean);
   if (have.length === 0) return null;
-  return `The cook can ONLY use this equipment: ${have.join(", ")} (plus everyday basics — a bowl, plate, knife, and an oven-safe dish or microwave-safe bowl where relevant). Every recipe must be fully makeable with only that — do not require anything that isn't listed (for example, no frying pan unless one is listed).`;
+  return `The cook can ONLY use this equipment: ${have.join(", ")} (plus everyday basics — a bowl, plate, knife, and the usual cookware for those appliances, e.g. a pan or pot for a stovetop, a tray or dish for an oven, a microwave-safe bowl for a microwave). Every recipe must be fully makeable with only that — do not rely on any appliance that isn't listed (for example, no oven unless one is listed).`;
 }
 
 /** Coerce one untrusted value into a typed DishIdea, or null if unusable. */
