@@ -6,6 +6,8 @@ import type { Recipe, RecipeStreamEvent } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+const DISH_DIFFICULTIES = new Set(["easy", "medium", "involved"]);
+
 const SYSTEM = `You are a resourceful, encouraging home cook. Favor what the cook already has and keep
 extra shopping minimal (assume common staples like salt, pepper, oil, water). Write clear, realistic
 steps a nervous beginner could follow.
@@ -27,7 +29,16 @@ Return ONLY a JSON object of this exact shape:
 No prose outside the JSON.`;
 
 export async function POST(req: Request) {
-  let body: { ingredients?: unknown; preferences?: unknown; equipment?: unknown; time?: unknown; difficulty?: unknown; dish?: unknown };
+  let body: {
+    ingredients?: unknown;
+    preferences?: unknown;
+    equipment?: unknown;
+    time?: unknown;
+    difficulty?: unknown;
+    dish?: unknown;
+    dishTime?: unknown;
+    dishDifficulty?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -45,20 +56,46 @@ export async function POST(req: Request) {
   // When a dish is chosen from the menu, generate just that one recipe; without
   // one, fall back to suggesting three (keeps the endpoint back-compatible).
   const dish = typeof body.dish === "string" ? body.dish.trim().slice(0, 120) : "";
+
+  // When the cook taps a dish, pin the exact time + difficulty its menu card
+  // showed, so the recipe matches what they chose instead of this separate model
+  // call inventing its own (which made the menu and the recipe disagree).
+  const dishTime = typeof body.dishTime === "string" ? body.dishTime.trim().slice(0, 40) : "";
+  const dishDifficulty =
+    typeof body.dishDifficulty === "string" && DISH_DIFFICULTIES.has(body.dishDifficulty)
+      ? body.dishDifficulty
+      : "";
+  const pinTime = Boolean(dish && dishTime);
+  const pinDifficulty = Boolean(dish && dishDifficulty);
+
   const equip = equipmentConstraint(body.equipment);
   const time = timeConstraint(body.time);
   const diff = difficultyConstraint(body.difficulty);
   const constraints = [
     ...constraintsFromPreferences(body.preferences),
     ...(equip ? [equip] : []),
-    ...(time ? [time] : []),
-    ...(diff ? [diff] : []),
+    // The exact pins below supersede the broader time/difficulty range filters
+    // for a chosen dish — otherwise a "<=20 min" filter could contradict a
+    // pinned "25 min", leaving the model an impossible prompt.
+    ...(!pinTime && time ? [time] : []),
+    ...(!pinDifficulty && diff ? [diff] : []),
   ];
   const constraintBlock = constraints.length
     ? `\n\nHard constraints — follow all of them:\n${constraints.map((c) => `- ${c}`).join("\n")}`
     : "";
+
+  const pins: string[] = [];
+  if (pinTime) pins.push(`set "time" to exactly "${dishTime}"`);
+  if (pinDifficulty) pins.push(`set "difficulty" to "${dishDifficulty}"`);
+  const pinBlock = pins.length
+    ? `\n\nThe cook picked this dish from a menu that showed it as ${[pinTime && dishTime, pinDifficulty && dishDifficulty]
+        .filter(Boolean)
+        .map((v) => `"${v}"`)
+        .join(", ")}. To match exactly what they chose, ${pins.join(" and ")}, and make sure the steps realistically fit that time.`
+    : "";
+
   const userContent = dish
-    ? `Make this specific dish: "${dish}".\nUsing these ingredients on hand: ${ingredients.join(", ")}.\nReturn exactly ONE recipe for it.${constraintBlock}`
+    ? `Make this specific dish: "${dish}".\nUsing these ingredients on hand: ${ingredients.join(", ")}.\nReturn exactly ONE recipe for it.${constraintBlock}${pinBlock}`
     : `Ingredients on hand: ${ingredients.join(", ")}.\nSuggest 3 recipes, meaningfully different from one another.${constraintBlock}`;
 
   // Config errors happen before we start streaming, so they can still be a

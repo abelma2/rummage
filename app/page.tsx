@@ -152,13 +152,24 @@ async function streamRecipes(
   equipment: string[],
   time: string[],
   difficulty: string[],
-  dish: string,
+  dish: DishIdea,
   onRecipes: (recipes: Recipe[]) => void
 ): Promise<void> {
   const res = await fetch("/api/recipes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ingredients, preferences, equipment, time, difficulty, dish }),
+    // Pin the dish's own time + difficulty (what the cook saw on the menu card)
+    // so the generated recipe matches it instead of inventing a fresh estimate.
+    body: JSON.stringify({
+      ingredients,
+      preferences,
+      equipment,
+      time,
+      difficulty,
+      dish: dish.title,
+      dishTime: dish.time,
+      dishDifficulty: dish.difficulty,
+    }),
   });
 
   // Validation/config failures come back as a plain JSON error, not a stream.
@@ -411,13 +422,13 @@ export default function Home() {
     }
   };
 
-  const cookDish = async (title: string) => {
+  const cookDish = async (dish: DishIdea) => {
     setError(null);
-    setChosenDish(title);
+    setChosenDish(dish.title);
     setRecipe(null);
     setCooking(true);
     try {
-      await streamRecipes(ingredients, prefs, equipment, time, difficulty, title, (r) => setRecipe(r[0] ?? null));
+      await streamRecipes(ingredients, prefs, equipment, time, difficulty, dish, (r) => setRecipe(r[0] ?? null));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't write that recipe.");
       setChosenDish(null);
@@ -788,7 +799,7 @@ export default function Home() {
           ) : (
             <div className="menu">
               {dishes.map((d, i) => (
-                <button className="dish" key={`${d.title}-${i}`} type="button" onClick={() => cookDish(d.title)}>
+                <button className="dish" key={`${d.title}-${i}`} type="button" onClick={() => cookDish(d)}>
                   <span className="dish-emoji" aria-hidden="true">
                     {d.emoji}
                   </span>
