@@ -34,3 +34,6 @@ next-env.d.ts
 # stray tooling scratch files (path-collapsed temp writes)
 *scratchpad*
 *AppDataLocalTemp*
+
+# local test photos — the app serves bundled samples from public/examples instead
+/examples/

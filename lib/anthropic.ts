@@ -40,9 +40,19 @@ export function extractJson<T>(text: string): T {
   const close = open === "{" ? "}" : "]";
   let depth = 0;
   let end = -1;
+  let inString = false;
+  let escaped = false;
   for (let i = start; i < candidate.length; i++) {
     const ch = candidate[i];
-    if (ch === open) depth++;
+    if (inString) {
+      // Don't count brackets that appear inside string values.
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === open) depth++;
     else if (ch === close) {
       depth--;
       if (depth === 0) {

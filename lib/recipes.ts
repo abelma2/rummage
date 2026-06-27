@@ -122,6 +122,23 @@ export function parsePartialRecipes(text: string): Recipe[] {
 }
 
 /**
+ * Tolerantly extract detected items ({name, box}) from the vision response —
+ * reuses the streaming helpers so a long or truncated response yields whatever
+ * items fully arrived instead of throwing. Handles `{"items":[...]}` or a bare
+ * array.
+ */
+export function parsePartialItems(text: string): { name: string; box: unknown }[] {
+  const body = extractArrayBody(text);
+  if (body === null) return [];
+  const out: { name: string; box: unknown }[] = [];
+  for (const item of splitTopLevel(body)) {
+    const obj = parseMaybePartialObject(item);
+    if (obj && typeof obj.name === "string") out.push({ name: obj.name, box: obj.box });
+  }
+  return out;
+}
+
+/**
  * Return the text inside the recipes array (`[ ... ]`), without the brackets.
  * Scans string-aware so a `[` inside a string value can't be mistaken for the
  * array — the model's shape is `{"recipes":[...]}`, so the first *structural*

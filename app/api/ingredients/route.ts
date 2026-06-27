@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
+import { getAnthropic, MODEL } from "@/lib/anthropic";
+import { parsePartialItems } from "@/lib/recipes";
 import { checkRateLimit } from "@/lib/ratelimit";
 import type { Detection, IngredientsResponse } from "@/lib/types";
 
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
     const client = getAnthropic();
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048, // boxes make the JSON long — too small truncates it
       system: SYSTEM,
       messages: [
         {
@@ -91,28 +92,18 @@ export async function POST(req: Request) {
       if (block.type === "text") text += block.text;
     }
 
-    // Accept either the {items:[...]} object or a bare array, of objects or
-    // plain strings — defensively coerce whatever shape comes back.
-    const parsed = extractJson<unknown>(text);
-    const rawItems = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray((parsed as { items?: unknown })?.items)
-        ? (parsed as { items: unknown[] }).items
-        : [];
+    // Tolerant parse — never throws on a long or slightly-truncated response,
+    // so the user gets whatever items came back rather than a hard error.
+    const rawItems = parsePartialItems(text);
 
     const names = new Set<string>();
     const boxes: Detection[] = [];
     for (const item of rawItems) {
-      const name =
-        typeof item === "string"
-          ? item.trim().toLowerCase()
-          : item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string"
-            ? (item as { name: string }).name.trim().toLowerCase()
-            : "";
+      const name = item.name.trim().toLowerCase();
       if (!name) continue;
       names.add(name);
 
-      const box = item && typeof item === "object" ? coerceBox((item as { box?: unknown }).box) : null;
+      const box = coerceBox(item.box);
       if (box && boxes.length < 25) boxes.push({ name, box });
     }
 
