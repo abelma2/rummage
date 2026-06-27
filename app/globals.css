@@ -33,7 +33,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -324,6 +324,158 @@ body {
   cursor: not-allowed;
 }
 
+/* ---------- Loading ---------- */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 26px 2px 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--muted);
+}
+.spin-dot {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--herb);
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ---------- Step screens (pick a dish / recipe) ---------- */
+.step {
+  margin-top: 8px;
+  animation: rise 0.4s ease both;
+}
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 10px 18px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.back-btn:hover {
+  border-color: var(--herb);
+  color: var(--herb);
+}
+.step-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(30px, 6vw, 44px);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 0 0 22px;
+}
+
+/* ---------- Dish menu ---------- */
+.menu {
+  display: grid;
+  gap: 12px;
+}
+.dish {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+.dish:hover {
+  border-color: var(--herb);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 36, 28, 0.07);
+}
+.dish-emoji {
+  font-size: 38px;
+  line-height: 1;
+  flex: none;
+}
+.dish-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.dish-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.dish-blurb {
+  font-size: 15px;
+  color: var(--muted);
+}
+.dish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+}
+.dish-go {
+  flex: none;
+  color: var(--muted);
+}
+.dish:hover .dish-go {
+  color: var(--herb);
+}
+
+/* ---------- Cook view (single recipe) ---------- */
+.cook-card {
+  animation: rise 0.4s ease both;
+}
+.cook-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 5vw, 34px);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 6px 0 10px;
+}
+.big-steps li {
+  font-size: 17px;
+  padding-bottom: 16px;
+  padding-left: 44px;
+}
+.big-steps li::before {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+.restart-btn {
+  margin-top: 24px;
+  padding: 12px 20px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--herb);
+  background: var(--herb-soft);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.restart-btn:hover {
+  background: rgba(46, 107, 78, 0.2);
+}
+
 /* ---------- Stages (analysis progress) ---------- */
 .stages {
   display: flex;
@@ -518,14 +670,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 24px;
+  padding: 16px 28px;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 17px;
+  font-size: 19px;
   color: var(--paper);
   background: var(--tomato);
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease;
   box-shadow: 0 2px 0 #b53a26;

@@ -15,17 +15,18 @@ have. One clean flow — upload, detect, cook — built on [Claude](https://www.
 
 ## How it works
 
-It's deliberately a two-step pipeline, so each half of the "multimodal" story is visible:
+It's a guided, three-step flow so each beat of the "multimodal" story is visible:
 
 1. **See it** — the photo is downscaled in the browser, then sent to Claude's vision
    model, which returns a structured list of the food it can identify — plus rough
    locations, so detected items are **labelled right on your photo**.
-2. **Cook it** — you tweak the detected ingredients (remove misreads, add what the
+2. **Choose it** — you tweak the detected ingredients (remove misreads, add what the
    camera missed), optionally flip on dietary filters (vegetarian, gluten-free,
-   quick, …), and Claude turns the final list into three recipes with steps,
-   timing, and what extra staples you'll need. The recipes **stream in live** —
-   cards fill themselves out token-by-token instead of making you wait for the
-   whole response.
+   quick, …), and Claude suggests a **menu of dish ideas** — cheap to generate, since
+   they're just titles, not full recipes.
+3. **Cook it** — tap a dish and Claude writes **just that one** recipe, **streamed
+   live** (the card fills in token-by-token). Generating one chosen recipe instead of
+   three keeps the API spend down.
 
 A few details worth noting:
 
@@ -44,15 +45,15 @@ A few details worth noting:
   ingredient list is fully editable before any recipe is generated.
 - **Snap more than one.** Add several photos — the fridge, the spice cabinet, the
   counter — and the detected ingredients accumulate into a single list.
-- **Try it without a fridge.** A bundled sample image (`public/sample-pantry.svg`)
-  powers a "Try an example" button, so first-time visitors can run the whole
-  pipeline in one click.
+- **Try it without a fridge.** A set of bundled sample photos (`public/examples/`)
+  powers a "Try an example" button — it picks one at random, so first-time visitors
+  can run the whole flow in one click.
 
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router) + **React 19** + **TypeScript**
 - **[Anthropic SDK](https://www.npmjs.com/package/@anthropic-ai/sdk)** for vision + generation
-- Two serverless route handlers (`/api/ingredients`, `/api/recipes`)
+- Three serverless route handlers (`/api/ingredients`, `/api/dishes`, `/api/recipes`)
 - Hand-written CSS design system — no UI framework
 - Deploys to **[Vercel](https://vercel.com)** with zero config
 
@@ -93,13 +94,14 @@ Or manually:
 | `UPSTASH_REDIS_REST_TOKEN` | no       | —                    | Paired with the URL above.                                     |
 | `RATELIMIT_PER_DAY`        | no       | `30`                 | Requests per IP per day once rate limiting is enabled.         |
 
-Each run makes two API calls (one vision, one text). Sonnet keeps quality high;
-Haiku is noticeably cheaper if you're sharing a public demo.
+A run makes a vision call, then a cheap "dish ideas" call, then one recipe call
+per dish you actually cook — so browsing ideas is inexpensive. Sonnet keeps
+quality high; Haiku is noticeably cheaper if you're sharing a public demo.
 
 ### Protecting a public demo
 
 The API routes call a **paid** model with **your** key, so a public link is a
-spend risk. Both routes are guarded by a per-IP daily rate limit
+spend risk. All three routes are guarded by a per-IP daily rate limit
 (`lib/ratelimit.ts`). It's **off until you configure it**: create a free
 [Upstash](https://upstash.com) Redis database, set `UPSTASH_REDIS_REST_URL` and
 `UPSTASH_REDIS_REST_TOKEN`, and redeploy. The guard fails open — if Upstash is
@@ -110,14 +112,19 @@ app down.
 
 ```
 app/
-  api/ingredients/route.ts   # photo  → detected ingredients (vision)
-  api/recipes/route.ts       # items  → recipes (generation)
-  page.tsx                   # the whole UI + upload/downscale flow
+  api/ingredients/route.ts   # photo  → detected ingredients + boxes (vision)
+  api/dishes/route.ts        # items  → a cheap menu of dish ideas
+  api/recipes/route.ts       # chosen dish → one streamed recipe (SSE)
+  page.tsx                   # the whole UI (photo → pick a dish → recipe)
   layout.tsx                 # fonts + metadata
   globals.css                # design system
 lib/
   anthropic.ts               # client + resilient JSON extraction
+  recipes.ts                 # dish/recipe coercion + tolerant partial parser
+  ratelimit.ts               # optional per-IP daily cap (Upstash)
   types.ts                   # shared types + model config
+public/
+  examples/                  # bundled sample photos for "Try an example"
 ```
 
 ## Ideas for next steps
