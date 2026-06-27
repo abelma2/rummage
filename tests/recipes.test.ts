@@ -7,6 +7,7 @@ import {
   coerceDish,
   coerceDishes,
   constraintsFromPreferences,
+  equipmentConstraint,
 } from "../lib/recipes";
 
 // A realistic streamed response: a comma in a title, escaped quotes, and
@@ -220,5 +221,26 @@ describe("constraintsFromPreferences", () => {
   it("returns [] for non-arrays", () => {
     expect(constraintsFromPreferences(undefined)).toEqual([]);
     expect(constraintsFromPreferences("vegan")).toEqual([]);
+  });
+});
+
+describe("equipmentConstraint", () => {
+  it("turns selected equipment into one 'only use' constraint", () => {
+    const c = equipmentConstraint(["microwave"]);
+    expect(typeof c).toBe("string");
+    expect(c).toMatch(/microwave/i);
+    expect(c).toMatch(/ONLY use/);
+  });
+  it("combines multiple items, dedups, and ignores unknown ids", () => {
+    const c = equipmentConstraint(["stovetop", "pan", "stovetop", "made-up"]) ?? "";
+    expect(c).toMatch(/stovetop/i);
+    expect(c).toMatch(/pan|skillet/i);
+    expect(c).not.toMatch(/made-up/i);
+  });
+  it("returns null when nothing valid is selected", () => {
+    expect(equipmentConstraint([])).toBeNull();
+    expect(equipmentConstraint(["made-up"])).toBeNull();
+    expect(equipmentConstraint(undefined)).toBeNull();
+    expect(equipmentConstraint("microwave")).toBeNull();
   });
 });

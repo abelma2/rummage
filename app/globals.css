@@ -654,6 +654,11 @@ body {
   border-color: var(--herb);
   color: var(--paper);
 }
+.prefs-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
 
 /* ---------- CTA ---------- */
 .cta-row {

@@ -36,9 +36,10 @@ A guided, three-step flow, so each beat of the multimodal story is visible:
    vision model, which returns a structured list of the food it can identify,
    plus rough locations so detected items are labelled right on your photo.
 2. **Choose it** — you tweak the detected ingredients (remove misreads, add what
-   the camera missed), optionally flip on dietary filters (vegetarian,
-   gluten-free, quick, and so on), and Claude suggests a menu of dish ideas —
-   cheap to generate, since they're just titles, not full recipes.
+   the camera missed), optionally set dietary filters and what you can cook with
+   (microwave only, just a stovetop and a pan, and so on), and Claude suggests a
+   menu of dish ideas — cheap to generate, since they're just titles, not full
+   recipes.
 3. **Cook it** — tap a dish and Claude writes just that one recipe, streamed live
    (the card fills in token by token). Generating one chosen recipe instead of
    three keeps the API spend down.

@@ -23,6 +23,17 @@ const PREFERENCES: { id: string; label: string }[] = [
   { id: "spicy", label: "Spicy" },
 ];
 
+// Cooking equipment toggles — ids the API maps to constraints so recipes stay
+// makeable (e.g. microwave-only, or a stovetop with no pan).
+const EQUIPMENT: { id: string; label: string }[] = [
+  { id: "stovetop", label: "Stovetop" },
+  { id: "oven", label: "Oven" },
+  { id: "microwave", label: "Microwave" },
+  { id: "air-fryer", label: "Air fryer" },
+  { id: "pan", label: "Pan" },
+  { id: "pot", label: "Pot" },
+];
+
 // Bundled real sample photos (in /public/examples) — one is picked at random.
 const EXAMPLES = [
   "fridge_1.jpg",
@@ -118,13 +129,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 async function streamRecipes(
   ingredients: string[],
   preferences: string[],
+  equipment: string[],
   dish: string,
   onRecipes: (recipes: Recipe[]) => void
 ): Promise<void> {
   const res = await fetch("/api/recipes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ingredients, preferences, dish }),
+    body: JSON.stringify({ ingredients, preferences, equipment, dish }),
   });
 
   // Validation/config failures come back as a plain JSON error, not a stream.
@@ -201,6 +213,7 @@ export default function Home() {
   const firstRender = useRef(true);
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
+  const [equipment, setEquipment] = useState<string[]>([]); // what the cook can cook with
   const [showLabels, setShowLabels] = useState(true);
   const [newItem, setNewItem] = useState("");
 
@@ -326,12 +339,19 @@ export default function Home() {
   const togglePref = (id: string) =>
     setPrefs((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
 
+  const toggleEquipment = (id: string) =>
+    setEquipment((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+
   const showDishes = async () => {
     setError(null);
     setLoadingDishes(true);
     setDishes([]);
     try {
-      const data = await postJson<DishesResponse>("/api/dishes", { ingredients, preferences: prefs });
+      const data = await postJson<DishesResponse>("/api/dishes", {
+        ingredients,
+        preferences: prefs,
+        equipment,
+      });
       setDishes(data.dishes);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't find dishes.");
@@ -346,7 +366,7 @@ export default function Home() {
     setRecipe(null);
     setCooking(true);
     try {
-      await streamRecipes(ingredients, prefs, title, (r) => setRecipe(r[0] ?? null));
+      await streamRecipes(ingredients, prefs, equipment, title, (r) => setRecipe(r[0] ?? null));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't write that recipe.");
       setChosenDish(null);
@@ -608,6 +628,29 @@ export default function Home() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {ingredients.length > 0 && (
+                <div className="prefs-block">
+                  <p className="prefs-label">What can you cook with?</p>
+                  <div className="prefs">
+                    {EQUIPMENT.map((e) => {
+                      const on = equipment.includes(e.id);
+                      return (
+                        <button
+                          key={e.id}
+                          type="button"
+                          className={`pref${on ? " on" : ""}`}
+                          onClick={() => toggleEquipment(e.id)}
+                          aria-pressed={on}
+                        >
+                          {e.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="prefs-hint">Leave blank if you have a normal kitchen.</p>
                 </div>
               )}
 

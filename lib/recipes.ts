@@ -32,6 +32,31 @@ export function constraintsFromPreferences(preferences: unknown): string[] {
     .filter(Boolean);
 }
 
+// Cooking equipment the cook has → a constraint so recipes stay actually
+// makeable (e.g. microwave-only, or a stovetop with no pan). Ids map to a
+// human phrase; the client owns the toggle list, we own the prompt text.
+export const EQUIPMENT: Record<string, string> = {
+  stovetop: "a stovetop",
+  oven: "an oven",
+  microwave: "a microwave",
+  "air-fryer": "an air fryer",
+  pan: "a frying pan / skillet",
+  pot: "a pot / saucepan",
+};
+
+/**
+ * Build a single constraint sentence from the selected equipment ids, or null
+ * if none are selected (no constraint — assume a normal kitchen).
+ */
+export function equipmentConstraint(equipment: unknown): string | null {
+  if (!Array.isArray(equipment)) return null;
+  const have = Array.from(new Set(equipment.filter((x): x is string => typeof x === "string")))
+    .map((id) => EQUIPMENT[id])
+    .filter(Boolean);
+  if (have.length === 0) return null;
+  return `The cook can ONLY use this equipment: ${have.join(", ")} (plus everyday basics — a bowl, plate, knife, and an oven-safe dish or microwave-safe bowl where relevant). Every recipe must be fully makeable with only that — do not require anything that isn't listed (for example, no frying pan unless one is listed).`;
+}
+
 /** Coerce one untrusted value into a typed DishIdea, or null if unusable. */
 export function coerceDish(raw: unknown): DishIdea | null {
   if (!raw || typeof raw !== "object") return null;
