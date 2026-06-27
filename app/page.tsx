@@ -27,7 +27,14 @@ function processImage(file: File): Promise<{ dataUrl: string; base64: string }> 
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      let { width, height } = img;
+      // naturalWidth/Height are the intrinsic dimensions — unlike width/height
+      // they don't depend on layout, and they're 0 for an SVG without a size.
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
+      if (!width || !height) {
+        reject(new Error("That image has no readable size. Try a JPG or PNG."));
+        return;
+      }
       if (width >= height && width > MAX_EDGE) {
         height = Math.round((height * MAX_EDGE) / width);
         width = MAX_EDGE;
@@ -216,6 +223,7 @@ export default function Home() {
     setRecipes([]);
     setError(null);
     setDetected(false);
+    setShowLabels(true);
     if (fileInput.current) fileInput.current.value = "";
   };
 

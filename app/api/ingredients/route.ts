@@ -28,7 +28,11 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 function coerceBox(raw: unknown): Detection["box"] | null {
   if (!Array.isArray(raw) || raw.length !== 4) return null;
   if (!raw.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
-  const [x, y, w, h] = (raw as number[]).map(clamp01);
+  const x = clamp01(raw[0] as number);
+  const y = clamp01(raw[1] as number);
+  // keep the box inside the image — width/height can't run past the right/bottom edge
+  const w = Math.min(clamp01(raw[2] as number), 1 - x);
+  const h = Math.min(clamp01(raw[3] as number), 1 - y);
   return w > 0 && h > 0 ? [x, y, w, h] : null;
 }
 

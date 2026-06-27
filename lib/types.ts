@@ -19,7 +19,7 @@ export interface Detection {
 
 export interface IngredientsResponse {
   ingredients: string[];
-  boxes: Detection[];
+  boxes?: Detection[];
 }
 
 export interface RecipesResponse {

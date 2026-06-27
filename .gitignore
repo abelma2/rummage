@@ -30,3 +30,7 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# stray tooling scratch files (path-collapsed temp writes)
+*scratchpad*
+*AppDataLocalTemp*
