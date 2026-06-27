@@ -19,18 +19,40 @@ const PREFERENCES: { id: string; label: string }[] = [
   { id: "vegan", label: "Vegan" },
   { id: "gluten-free", label: "Gluten-free" },
   { id: "dairy-free", label: "Dairy-free" },
-  { id: "quick", label: "Quick" },
   { id: "spicy", label: "Spicy" },
 ];
 
+// How much time the cook has — single-select. Chips lead with the concrete
+// minute range so "Quick" is never a vague mood word; the API maps the id to a
+// time constraint. Leaving it blank means dishes of any length.
+const TIME: { id: string; label: string }[] = [
+  { id: "quick", label: "Quick · 20 min or less" },
+  { id: "medium", label: "A bit · 25–35 min" },
+  { id: "long", label: "Plenty · 45–60 min" },
+];
+
+// How involved a cook they want — single-select. "Hard" maps to the model's
+// internal "involved" difficulty (see difficultyLabel below for the reverse).
+const DIFFICULTY: { id: string; label: string }[] = [
+  { id: "easy", label: "Easy" },
+  { id: "medium", label: "Medium" },
+  { id: "hard", label: "Hard" },
+];
+
 // Cooking equipment toggles — ids the API maps to constraints so recipes stay
-// makeable (e.g. microwave-only, or a stovetop with no pan).
+// makeable (e.g. microwave-only).
 const EQUIPMENT: { id: string; label: string }[] = [
   { id: "stovetop", label: "Stovetop" },
   { id: "oven", label: "Oven" },
   { id: "microwave", label: "Microwave" },
   { id: "air-fryer", label: "Air fryer" },
 ];
+
+// The model tags dishes/recipes with easy | medium | involved; show one
+// consistent easy/medium/hard vocabulary to the user (the CSS class keeps the
+// raw value, so .tag.diff-involved styling is unchanged).
+const DIFFICULTY_LABELS: Record<string, string> = { easy: "Easy", medium: "Medium", involved: "Hard" };
+const difficultyLabel = (d: string): string => DIFFICULTY_LABELS[d] ?? d;
 
 // Bundled real sample photos (in /public/examples) — one is picked at random.
 const EXAMPLES = [
@@ -128,13 +150,15 @@ async function streamRecipes(
   ingredients: string[],
   preferences: string[],
   equipment: string[],
+  time: string[],
+  difficulty: string[],
   dish: string,
   onRecipes: (recipes: Recipe[]) => void
 ): Promise<void> {
   const res = await fetch("/api/recipes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ingredients, preferences, equipment, dish }),
+    body: JSON.stringify({ ingredients, preferences, equipment, time, difficulty, dish }),
   });
 
   // Validation/config failures come back as a plain JSON error, not a stream.
@@ -212,6 +236,8 @@ export default function Home() {
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [equipment, setEquipment] = useState<string[]>([]); // what the cook can cook with
+  const [time, setTime] = useState<string[]>([]); // time budget (single-select, 0 or 1)
+  const [difficulty, setDifficulty] = useState<string[]>([]); // effort level (single-select, 0 or 1)
   const [showLabels, setShowLabels] = useState(true);
   const [newItem, setNewItem] = useState("");
 
@@ -340,6 +366,31 @@ export default function Home() {
   const toggleEquipment = (id: string) =>
     setEquipment((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
 
+  // Time and effort are single-select: tapping a chip selects it (replacing any
+  // other), and tapping the selected one clears it back to "any".
+  const toggleTime = (id: string) =>
+    setTime((prev) => (prev.includes(id) ? [] : [id]));
+
+  const toggleDifficulty = (id: string) =>
+    setDifficulty((prev) => (prev.includes(id) ? [] : [id]));
+
+  // Arrow-key navigation for a single-select radiogroup (Time / Effort): moving
+  // also selects, like native radios. Clicking still toggles (and can clear back
+  // to "any"). Focus follows the new selection within the group.
+  const moveRadio = (
+    e: KeyboardEvent<HTMLButtonElement>,
+    items: { id: string; label: string }[],
+    setSel: (v: string[]) => void,
+    idx: number
+  ) => {
+    if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(e.key)) return;
+    e.preventDefault();
+    const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+    const ni = (idx + dir + items.length) % items.length;
+    setSel([items[ni].id]);
+    e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[ni]?.focus();
+  };
+
   const showDishes = async () => {
     setError(null);
     setLoadingDishes(true);
@@ -349,6 +400,8 @@ export default function Home() {
         ingredients,
         preferences: prefs,
         equipment,
+        time,
+        difficulty,
       });
       setDishes(data.dishes);
     } catch (e) {
@@ -364,7 +417,7 @@ export default function Home() {
     setRecipe(null);
     setCooking(true);
     try {
-      await streamRecipes(ingredients, prefs, equipment, title, (r) => setRecipe(r[0] ?? null));
+      await streamRecipes(ingredients, prefs, equipment, time, difficulty, title, (r) => setRecipe(r[0] ?? null));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't write that recipe.");
       setChosenDish(null);
@@ -609,8 +662,8 @@ export default function Home() {
 
               {ingredients.length > 0 && (
                 <div className="prefs-block">
-                  <p className="prefs-label">Any preferences?</p>
-                  <div className="prefs">
+                  <p className="prefs-label" id="pref-label">Any preferences?</p>
+                  <div className="prefs" role="group" aria-labelledby="pref-label" aria-describedby="pref-hint">
                     {PREFERENCES.map((p) => {
                       const on = prefs.includes(p.id);
                       return (
@@ -626,13 +679,66 @@ export default function Home() {
                       );
                     })}
                   </div>
+                  <p className="prefs-hint" id="pref-hint">Pick any that apply, or leave blank.</p>
                 </div>
               )}
 
               {ingredients.length > 0 && (
                 <div className="prefs-block">
-                  <p className="prefs-label">What can you cook with?</p>
-                  <div className="prefs">
+                  <p className="prefs-label" id="time-label">How much time do you have?</p>
+                  <div className="prefs" role="radiogroup" aria-labelledby="time-label" aria-describedby="time-hint">
+                    {TIME.map((t, i) => {
+                      const on = time.includes(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          tabIndex={on || (time.length === 0 && i === 0) ? 0 : -1}
+                          className={`pref${on ? " on" : ""}`}
+                          onClick={() => toggleTime(t.id)}
+                          onKeyDown={(e) => moveRadio(e, TIME, setTime, i)}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="prefs-hint" id="time-hint">Pick one, or leave blank for dishes of any length.</p>
+                </div>
+              )}
+
+              {ingredients.length > 0 && (
+                <div className="prefs-block">
+                  <p className="prefs-label" id="diff-label">How easy should it be?</p>
+                  <div className="prefs" role="radiogroup" aria-labelledby="diff-label" aria-describedby="diff-hint">
+                    {DIFFICULTY.map((d, i) => {
+                      const on = difficulty.includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          tabIndex={on || (difficulty.length === 0 && i === 0) ? 0 : -1}
+                          className={`pref${on ? " on" : ""}`}
+                          onClick={() => toggleDifficulty(d.id)}
+                          onKeyDown={(e) => moveRadio(e, DIFFICULTY, setDifficulty, i)}
+                        >
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="prefs-hint" id="diff-hint">Pick one, or leave blank to see all of them.</p>
+                </div>
+              )}
+
+              {ingredients.length > 0 && (
+                <div className="prefs-block">
+                  <p className="prefs-label" id="equip-label">What can you cook with?</p>
+                  <div className="prefs" role="group" aria-labelledby="equip-label" aria-describedby="equip-hint">
                     {EQUIPMENT.map((e) => {
                       const on = equipment.includes(e.id);
                       return (
@@ -648,7 +754,7 @@ export default function Home() {
                       );
                     })}
                   </div>
-                  <p className="prefs-hint">Leave blank if you have a normal kitchen.</p>
+                  <p className="prefs-hint" id="equip-hint">Leave blank if you have a normal kitchen.</p>
                 </div>
               )}
 
@@ -691,7 +797,7 @@ export default function Home() {
                     {d.blurb && <span className="dish-blurb">{d.blurb}</span>}
                     <span className="dish-meta">
                       {d.time && <span className="tag">{d.time}</span>}
-                      <span className={`tag diff-${d.difficulty}`}>{d.difficulty}</span>
+                      <span className={`tag diff-${d.difficulty}`}>{difficultyLabel(d.difficulty)}</span>
                     </span>
                   </span>
                   <svg className="dish-go" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -718,7 +824,7 @@ export default function Home() {
               {recipe.description && <p className="card-desc">{recipe.description}</p>}
               <div className="card-meta">
                 {recipe.time && <span className="tag">{recipe.time}</span>}
-                <span className={`tag diff-${recipe.difficulty}`}>{recipe.difficulty}</span>
+                <span className={`tag diff-${recipe.difficulty}`}>{difficultyLabel(recipe.difficulty)}</span>
               </div>
 
               {(recipe.uses.length > 0 || recipe.need.length > 0) && (

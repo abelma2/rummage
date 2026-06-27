@@ -35,5 +35,8 @@ next-env.d.ts
 *scratchpad*
 *AppDataLocalTemp*
 
+# local editor/agent tooling state (preview config, task locks)
+.claude/
+
 # local test photos — the app serves bundled samples from public/examples instead
 /examples/

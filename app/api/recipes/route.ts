@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
-import { coerceRecipes, parsePartialRecipes, constraintsFromPreferences, equipmentConstraint } from "@/lib/recipes";
+import { coerceRecipes, parsePartialRecipes, constraintsFromPreferences, equipmentConstraint, timeConstraint, difficultyConstraint } from "@/lib/recipes";
 import type { Recipe, RecipeStreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -27,7 +27,7 @@ Return ONLY a JSON object of this exact shape:
 No prose outside the JSON.`;
 
 export async function POST(req: Request) {
-  let body: { ingredients?: unknown; preferences?: unknown; equipment?: unknown; dish?: unknown };
+  let body: { ingredients?: unknown; preferences?: unknown; equipment?: unknown; time?: unknown; difficulty?: unknown; dish?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -46,7 +46,14 @@ export async function POST(req: Request) {
   // one, fall back to suggesting three (keeps the endpoint back-compatible).
   const dish = typeof body.dish === "string" ? body.dish.trim().slice(0, 120) : "";
   const equip = equipmentConstraint(body.equipment);
-  const constraints = [...constraintsFromPreferences(body.preferences), ...(equip ? [equip] : [])];
+  const time = timeConstraint(body.time);
+  const diff = difficultyConstraint(body.difficulty);
+  const constraints = [
+    ...constraintsFromPreferences(body.preferences),
+    ...(equip ? [equip] : []),
+    ...(time ? [time] : []),
+    ...(diff ? [diff] : []),
+  ];
   const constraintBlock = constraints.length
     ? `\n\nHard constraints — follow all of them:\n${constraints.map((c) => `- ${c}`).join("\n")}`
     : "";

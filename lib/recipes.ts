@@ -20,7 +20,6 @@ export const PREFERENCE_RULES: Record<string, string> = {
   vegan: "Must be vegan — no animal products at all (no meat, dairy, eggs, or honey).",
   "gluten-free": "Must be gluten-free.",
   "dairy-free": "Must be dairy-free.",
-  quick: "Should take 30 minutes or less, start to finish.",
   spicy: "Lean into bold, spicy flavors wherever it fits.",
 };
 
@@ -53,6 +52,50 @@ export function equipmentConstraint(equipment: unknown): string | null {
     .filter(Boolean);
   if (have.length === 0) return null;
   return `The cook can ONLY use this equipment: ${have.join(", ")} (plus everyday basics — a bowl, plate, knife, and the usual cookware for those appliances, e.g. a pan or pot for a stovetop, a tray or dish for an oven, a microwave-safe bowl for a microwave). Every recipe must be fully makeable with only that — do not rely on any appliance that isn't listed (for example, no oven unless one is listed).`;
+}
+
+// How much time the cook has. Single-select on the client (you have one time
+// budget right now), but — like equipment — we accept a list and stay robust if
+// more than one id ever arrives. Selecting nothing means no constraint (any time).
+export const TIME_RULES: Record<string, string> = {
+  quick:
+    "Keep it fast — the whole dish should take about 20 minutes or less, start to finish (think 5, 10, 15, or 20 minutes). Good for someone in a time crunch.",
+  medium:
+    "A medium cook — the whole dish should take roughly 25 to 35 minutes, start to finish. Good for someone who has a little while to cook.",
+  long:
+    "A longer, relaxed cook — the whole dish should take roughly 45 minutes to an hour, start to finish. Good for someone happy to potter and babysit it in the kitchen.",
+};
+
+/** Build a time-budget constraint from the selected tier id(s), or null if none. */
+export function timeConstraint(time: unknown): string | null {
+  if (!Array.isArray(time)) return null;
+  const phrases = Array.from(new Set(time.filter((x): x is string => typeof x === "string")))
+    .map((id) => TIME_RULES[id])
+    .filter(Boolean);
+  if (phrases.length === 0) return null;
+  return phrases.length === 1 ? phrases[0] : `The total time should fit one of these: ${phrases.join(" — or — ")}`;
+}
+
+// How involved a cook they're up for. The "hard" id maps to the model's internal
+// "involved" difficulty; each phrase pins the difficulty enum so the dish/recipe
+// tag stays consistent with the filter. Single-select on the client.
+export const DIFFICULTY_RULES: Record<string, string> = {
+  easy:
+    'Keep it easy — few steps, simple techniques, and very little that can go wrong, right for a nervous beginner. Set the difficulty to "easy".',
+  medium:
+    'A medium effort is fine — a handful of honest steps and some light technique, but nothing fussy. Set the difficulty to "medium".',
+  hard:
+    'A more involved cook is welcome — more steps, technique, and hands-on attention are fine. Set the difficulty to "involved".',
+};
+
+/** Build an effort/difficulty constraint from the selected tier id(s), or null if none. */
+export function difficultyConstraint(difficulty: unknown): string | null {
+  if (!Array.isArray(difficulty)) return null;
+  const phrases = Array.from(new Set(difficulty.filter((x): x is string => typeof x === "string")))
+    .map((id) => DIFFICULTY_RULES[id])
+    .filter(Boolean);
+  if (phrases.length === 0) return null;
+  return phrases.length === 1 ? phrases[0] : `Any of these effort levels works: ${phrases.join(" — or — ")}`;
 }
 
 /** Coerce one untrusted value into a typed DishIdea, or null if unusable. */

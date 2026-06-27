@@ -8,6 +8,8 @@ import {
   coerceDishes,
   constraintsFromPreferences,
   equipmentConstraint,
+  timeConstraint,
+  difficultyConstraint,
 } from "../lib/recipes";
 
 // A realistic streamed response: a comma in a title, escaped quotes, and
@@ -211,9 +213,12 @@ describe("coerceDish / coerceDishes", () => {
 
 describe("constraintsFromPreferences", () => {
   it("maps known ids to constraint sentences", () => {
-    const c = constraintsFromPreferences(["vegetarian", "quick"]);
+    const c = constraintsFromPreferences(["vegetarian", "spicy"]);
     expect(c).toHaveLength(2);
     expect(c[0]).toMatch(/vegetarian/i);
+  });
+  it("no longer treats 'quick' as a preference (it moved to the Time group)", () => {
+    expect(constraintsFromPreferences(["quick"])).toEqual([]);
   });
   it("ignores unknown ids and dedups", () => {
     expect(constraintsFromPreferences(["vegan", "made-up", "vegan"])).toHaveLength(1);
@@ -242,5 +247,31 @@ describe("equipmentConstraint", () => {
     expect(equipmentConstraint(["made-up"])).toBeNull();
     expect(equipmentConstraint(undefined)).toBeNull();
     expect(equipmentConstraint("microwave")).toBeNull();
+  });
+});
+
+describe("timeConstraint", () => {
+  it("maps a selected time tier to a constraint phrase", () => {
+    const c = timeConstraint(["quick"]) ?? "";
+    expect(c).toMatch(/20 minutes or less/i);
+  });
+  it("returns null when nothing valid is selected", () => {
+    expect(timeConstraint([])).toBeNull();
+    expect(timeConstraint(["made-up"])).toBeNull();
+    expect(timeConstraint(undefined)).toBeNull();
+    expect(timeConstraint("quick")).toBeNull(); // must be an array, not a bare string
+  });
+});
+
+describe("difficultyConstraint", () => {
+  it("pins the internal enum — the 'hard' tier maps to 'involved'", () => {
+    const c = difficultyConstraint(["hard"]) ?? "";
+    expect(c).toMatch(/involved/);
+  });
+  it("returns null when nothing valid is selected", () => {
+    expect(difficultyConstraint([])).toBeNull();
+    expect(difficultyConstraint(["made-up"])).toBeNull();
+    expect(difficultyConstraint(undefined)).toBeNull();
+    expect(difficultyConstraint("easy")).toBeNull(); // must be an array, not a bare string
   });
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
-import { coerceDishes, constraintsFromPreferences, equipmentConstraint } from "@/lib/recipes";
+import { coerceDishes, constraintsFromPreferences, equipmentConstraint, timeConstraint, difficultyConstraint } from "@/lib/recipes";
 import type { DishIdea, DishesResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -27,7 +27,7 @@ Return ONLY a JSON object of this exact shape:
 No prose outside the JSON. Make the 6 ideas varied (different styles, efforts, and meals).`;
 
 export async function POST(req: Request) {
-  let body: { ingredients?: unknown; preferences?: unknown; equipment?: unknown };
+  let body: { ingredients?: unknown; preferences?: unknown; equipment?: unknown; time?: unknown; difficulty?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -43,7 +43,14 @@ export async function POST(req: Request) {
   }
 
   const equip = equipmentConstraint(body.equipment);
-  const constraints = [...constraintsFromPreferences(body.preferences), ...(equip ? [equip] : [])];
+  const time = timeConstraint(body.time);
+  const diff = difficultyConstraint(body.difficulty);
+  const constraints = [
+    ...constraintsFromPreferences(body.preferences),
+    ...(equip ? [equip] : []),
+    ...(time ? [time] : []),
+    ...(diff ? [diff] : []),
+  ];
 
   try {
     const client = getAnthropic();
