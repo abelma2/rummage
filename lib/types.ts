@@ -26,6 +26,19 @@ export interface RecipesResponse {
   recipes: Recipe[];
 }
 
+/** A lightweight dish idea shown in the pick-a-dish menu (cheap to generate). */
+export interface DishIdea {
+  title: string;
+  emoji: string; // a single friendly emoji
+  blurb: string; // one short sentence
+  time: string; // e.g. "25 min"
+  difficulty: "easy" | "medium" | "involved";
+}
+
+export interface DishesResponse {
+  dishes: DishIdea[];
+}
+
 /**
  * Server-sent events emitted by the streaming /api/recipes route.
  * - `recipes`: a best-effort snapshot as the model writes (cards fill in live)

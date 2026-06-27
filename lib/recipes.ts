@@ -9,9 +9,61 @@
 // hasn't finished arriving. The authoritative result is always the strict parse
 // of the final message (see the route) — this is display-only and converges.
 
-import type { Recipe } from "./types";
+import type { DishIdea, Recipe } from "./types";
 
 const DIFFICULTIES = new Set<Recipe["difficulty"]>(["easy", "medium", "involved"]);
+
+// Known recipe constraints. Clients send ids; we own the prompt text and ignore
+// anything we don't recognize. Shared by the dishes and recipes routes.
+export const PREFERENCE_RULES: Record<string, string> = {
+  vegetarian: "Must be vegetarian — no meat, poultry, or fish.",
+  vegan: "Must be vegan — no animal products at all (no meat, dairy, eggs, or honey).",
+  "gluten-free": "Must be gluten-free.",
+  "dairy-free": "Must be dairy-free.",
+  quick: "Should take 30 minutes or less, start to finish.",
+  spicy: "Lean into bold, spicy flavors wherever it fits.",
+};
+
+/** Map preference ids (untrusted) to their constraint sentences. */
+export function constraintsFromPreferences(preferences: unknown): string[] {
+  if (!Array.isArray(preferences)) return [];
+  return Array.from(new Set(preferences.filter((x): x is string => typeof x === "string")))
+    .map((id) => PREFERENCE_RULES[id])
+    .filter(Boolean);
+}
+
+/** Coerce one untrusted value into a typed DishIdea, or null if unusable. */
+export function coerceDish(raw: unknown): DishIdea | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const title = typeof r.title === "string" ? r.title.trim() : "";
+  if (!title) return null;
+
+  const difficulty =
+    typeof r.difficulty === "string" && DIFFICULTIES.has(r.difficulty as Recipe["difficulty"])
+      ? (r.difficulty as DishIdea["difficulty"])
+      : "medium";
+  const emoji = typeof r.emoji === "string" && r.emoji.trim() ? r.emoji.trim().slice(0, 4) : "🍽️";
+
+  return {
+    title: title.slice(0, 80),
+    emoji,
+    blurb: typeof r.blurb === "string" ? r.blurb.trim().slice(0, 160) : "",
+    time: typeof r.time === "string" ? r.time.trim() : "",
+    difficulty,
+  };
+}
+
+/** Coerce a parsed response ({dishes:[...]} or a bare array) into DishIdeas. */
+export function coerceDishes(parsed: unknown): DishIdea[] {
+  const arr =
+    parsed && typeof parsed === "object" && Array.isArray((parsed as { dishes?: unknown }).dishes)
+      ? (parsed as { dishes: unknown[] }).dishes
+      : Array.isArray(parsed)
+        ? parsed
+        : [];
+  return arr.map(coerceDish).filter((d): d is DishIdea => d !== null).slice(0, 8);
+}
 
 /** Coerce one untrusted value into a typed Recipe, or null if it isn't usable. */
 export function coerceRecipe(raw: unknown): Recipe | null {

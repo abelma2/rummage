@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
 import { getAnthropic, extractJson, MODEL } from "@/lib/anthropic";
-import { coerceRecipes, parsePartialRecipes } from "@/lib/recipes";
+import { coerceRecipes, parsePartialRecipes, constraintsFromPreferences } from "@/lib/recipes";
 import { checkRateLimit } from "@/lib/ratelimit";
 import type { Recipe, RecipeStreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const SYSTEM = `You are a resourceful home cook. Given a list of ingredients someone has on hand,
-suggest 3 recipes they could realistically make. Favor dishes that use what they already have and
-keep extra shopping minimal (assume common staples like salt, pepper, oil, water).
+const SYSTEM = `You are a resourceful, encouraging home cook. Favor what the cook already has and keep
+extra shopping minimal (assume common staples like salt, pepper, oil, water). Write clear, realistic
+steps a nervous beginner could follow.
 
 Return ONLY a JSON object of this exact shape:
 {
   "recipes": [
     {
       "title": "string — short, appetizing",
-      "description": "string — one sentence on why it works",
+      "description": "string — one friendly sentence on why it works",
       "time": "string — rough total time, e.g. '25 min'",
       "difficulty": "easy" | "medium" | "involved",
       "uses": ["the provided ingredients this dish leans on"],
@@ -25,18 +25,7 @@ Return ONLY a JSON object of this exact shape:
     }
   ]
 }
-No prose outside the JSON. Make the three recipes meaningfully different from one another.`;
-
-// Known recipe constraints. The client sends ids; we own the prompt text and
-// ignore anything we don't recognize (defensive — never trust the wire).
-const PREFERENCE_RULES: Record<string, string> = {
-  vegetarian: "Every recipe must be vegetarian — no meat, poultry, or fish.",
-  vegan: "Every recipe must be vegan — no animal products at all (no meat, dairy, eggs, or honey).",
-  "gluten-free": "Every recipe must be gluten-free.",
-  "dairy-free": "Every recipe must be dairy-free.",
-  quick: "Every recipe should take 30 minutes or less, start to finish.",
-  spicy: "Lean into bold, spicy flavors wherever it fits.",
-};
+No prose outside the JSON.`;
 
 export async function POST(req: Request) {
   const rate = await checkRateLimit(req);
@@ -49,7 +38,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { ingredients?: unknown; preferences?: unknown };
+  let body: { ingredients?: unknown; preferences?: unknown; dish?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -64,11 +53,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Add at least one ingredient first." }, { status: 400 });
   }
 
-  const constraints = Array.isArray(body.preferences)
-    ? Array.from(new Set(body.preferences.filter((x): x is string => typeof x === "string")))
-        .map((id) => PREFERENCE_RULES[id])
-        .filter(Boolean)
-    : [];
+  // When a dish is chosen from the menu, generate just that one recipe; without
+  // one, fall back to suggesting three (keeps the endpoint back-compatible).
+  const dish = typeof body.dish === "string" ? body.dish.trim().slice(0, 120) : "";
+  const constraints = constraintsFromPreferences(body.preferences);
+  const constraintBlock = constraints.length
+    ? `\n\nHard constraints — follow all of them:\n${constraints.map((c) => `- ${c}`).join("\n")}`
+    : "";
+  const userContent = dish
+    ? `Make this specific dish: "${dish}".\nUsing these ingredients on hand: ${ingredients.join(", ")}.\nReturn exactly ONE recipe for it.${constraintBlock}`
+    : `Ingredients on hand: ${ingredients.join(", ")}.\nSuggest 3 recipes, meaningfully different from one another.${constraintBlock}`;
 
   // Config errors happen before we start streaming, so they can still be a
   // normal HTTP error the client surfaces directly.
@@ -101,16 +95,7 @@ export async function POST(req: Request) {
             model: MODEL,
             max_tokens: 2048,
             system: SYSTEM,
-            messages: [
-              {
-                role: "user",
-                content:
-                  `Ingredients on hand: ${ingredients.join(", ")}.` +
-                  (constraints.length
-                    ? `\n\nHard constraints — follow all of them:\n${constraints.map((c) => `- ${c}`).join("\n")}`
-                    : ""),
-              },
-            ],
+            messages: [{ role: "user", content: userContent }],
           },
           { signal: ac.signal }
         );
